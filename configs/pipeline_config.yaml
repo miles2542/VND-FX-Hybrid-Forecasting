@@ -1,0 +1,65 @@
+# Hybrid FX Forecasting Pipeline Configuration
+# Base Paper: Ince & Trafalis (2006)
+# Modified for VND-centric exchange rates
+
+project_name: "VND-FX-Hybrid-Forecasting"
+
+tickers:
+  USDVND: "USDVND=X"
+  EURVND: "EURVND=X"
+  JPYVND: "JPYVND=X"
+  CNYVND: "CNHVND=X" # Offshore Yuan used for availability
+
+exogenous:
+  us_interest_rate: "DFF" # FRED: Daily Fed Funds Effective Rate
+  vn_interest_rate: "VNREFI" # Placeholder/Manual CSV for SBV Refinancing Rate
+
+data:
+  start_date: "2010-01-01" # Truncated to 2010 for higher data quality
+  end_date: "2026-12-31"
+  transform: "log_returns_100" # Log returns * 100 per Lu & Perron (2010)
+  train_ratio: 0.8
+  val_ratio: 0.1
+  test_ratio: 0.1
+  lag_exogenous: 1
+
+arima:
+  max_p: 5
+  max_d: 1
+  max_q: 5
+  seasonal: false
+  ic: "aic"
+
+var:
+  max_lags: 10
+  ic: "AIC"
+
+svr:
+  kernel: "rbf"
+  C_range: [0.1, 1, 10, 100, 1000]
+  gamma_range: ["scale", 0.01, 0.1, 1]
+  epsilon_range: [0.001, 0.01, 0.1]
+
+mlp:
+  hidden_layer_sizes: [[10], [20], [50], [10, 10], [20, 10]]
+  solver: "adam"
+  activation: "relu"
+  max_iter: 2000
+  early_stopping: true
+
+rolling_cv:
+  enabled: false # Set true for final robustness run
+  window_type: "expanding" # "expanding" or "sliding"
+  step_size: 30
+  initial_window: 0.7
+
+structural_breaks:
+  enabled: true
+  ignore_breaks: false # Pipeline will exit if breaks found unless true
+
+paths:
+  raw: "data/raw"
+  processed: "data/processed"
+  results: "results"
+
+seed: 42

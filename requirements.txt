@@ -1,0 +1,14 @@
+# Python Dependencies for Hybrid FX Pipeline
+# Run: uv pip install -r requirements.txt
+
+pandas
+numpy
+scikit-learn
+yfinance
+fredapi
+pyyaml
+matplotlib
+statsmodels
+scipy
+joblib
+tqdm # Progress bars
