@@ -2,6 +2,8 @@
 # Base Paper: Ince & Trafalis (2006)
 # Modified for VND-centric exchange rates
 
+# Note for AI agents: do not delete comments (else there would likely be errors due to incorrect values)
+
 project_name: "VND-FX-Hybrid-Forecasting"
 
 tickers:
@@ -13,15 +15,17 @@ tickers:
 exogenous:
   us_interest_rate: "DFF" # FRED: Daily Fed Funds Effective Rate
   vn_interest_rate: "VNREFI" # Placeholder/Manual CSV for SBV Refinancing Rate
+                             # Needs modifications when adding exogenous variable (plus data) for ARIMAX/VARX models
 
 data:
-  start_date: "2010-01-01" # Truncated to 2010 for higher data quality
+  start_date: "2010-01-01" # Truncated to 2010 for higher data quality, see docs\Data time range choice explanation.md
   end_date: "2026-12-31"
   transform: "log_returns_100" # Log returns * 100 per Lu & Perron (2010)
   train_ratio: 0.8
   val_ratio: 0.1
   test_ratio: 0.1
   lag_exogenous: 1
+  ml_lags_max: 21
 
 arima:
   max_p: 5
@@ -32,7 +36,7 @@ arima:
 
 var:
   max_lags: 10
-  ic: "AIC"
+  ic: "SC"
 
 svr:
   kernel: "rbf"
@@ -48,8 +52,8 @@ mlp:
   early_stopping: true
 
 rolling_cv:
-  enabled: false # Set true for final robustness run
-  window_type: "expanding" # "expanding" or "sliding"
+  enabled: false # Set true for final robustness run, needs to be implemented and modify this comment
+  window_type: "sliding" # "expanding" or "sliding"
   step_size: 30
   initial_window: 0.7
 

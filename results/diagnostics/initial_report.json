@@ -1,0 +1,66 @@
+{
+  "USDVND_RET": {
+    "adf": {
+      "statistic": -30.2418,
+      "p_value": 0.01,
+      "conclusion": "Stationary (Reject Unit Root)"
+    },
+    "kpss": {
+      "p_value": null,
+      "status": "PENDING - Member D Task"
+    },
+    "structural_breaks": {
+      "found": false,
+      "dates": [],
+      "status": "PENDING - Member E Task"
+    }
+  },
+  "EURVND_RET": {
+    "adf": {
+      "statistic": -30.2023,
+      "p_value": 0.01,
+      "conclusion": "Stationary (Reject Unit Root)"
+    },
+    "kpss": {
+      "p_value": null,
+      "status": "PENDING - Member D Task"
+    },
+    "structural_breaks": {
+      "found": false,
+      "dates": [],
+      "status": "PENDING - Member E Task"
+    }
+  },
+  "JPYVND_RET": {
+    "adf": {
+      "statistic": -30.054,
+      "p_value": 0.01,
+      "conclusion": "Stationary (Reject Unit Root)"
+    },
+    "kpss": {
+      "p_value": null,
+      "status": "PENDING - Member D Task"
+    },
+    "structural_breaks": {
+      "found": false,
+      "dates": [],
+      "status": "PENDING - Member E Task"
+    }
+  },
+  "CNYVND_RET": {
+    "adf": {
+      "statistic": -30.2101,
+      "p_value": 0.01,
+      "conclusion": "Stationary (Reject Unit Root)"
+    },
+    "kpss": {
+      "p_value": null,
+      "status": "PENDING - Member D Task"
+    },
+    "structural_breaks": {
+      "found": false,
+      "dates": [],
+      "status": "PENDING - Member E Task"
+    }
+  }
+}

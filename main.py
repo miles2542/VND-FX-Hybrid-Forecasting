@@ -1,59 +1,94 @@
-"""
-Main Entry Orchestrator for Hybrid FX Forecasting Pipeline
-Base Paper: Ince & Trafalis (2006)
-Hybrid Logic: Zhang (2003) - Residual Hybrid
-Academic Guardrails: Tashman (2000), Diebold & Mariano (1995), Lu & Perron (2010), Zhang (2003)
-"""
-
+import os
+import subprocess
+import yaml
 import argparse
 import sys
-import yaml
+import json
 
-def banner(text):
-    print("\n" + "="*80)
-    print(f" {text}")
-    print("="*80 + "\n")
+def load_config(path):
+    with open(path, 'r') as f:
+        return yaml.safe_load(f)
 
-def load_config(config_path):
+def run_step(name, command, cwd=None):
+    """Orchestrate a pipeline step with env vars for R library protection."""
+    print(f"\n{'='*20} STEP: {name} {'='*20}")
+    
+    # Ensure R scripts use our local library path
+    env = os.environ.copy()
+    env["R_LIBS_USER"] = "R_libs"
+    
     try:
-        with open(config_path, 'r') as file:
-            return yaml.safe_load(file)
-    except Exception as e:
-        print(f"[ERROR] Failed to load config at {config_path}: {e}")
-        sys.exit(1)
+        subprocess.run(command, cwd=cwd, env=env, check=True)
+        print(f"[SUCCESS] {name} completed.")
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"[ERROR] {name} failed with exit code {e.returncode}")
+        return False
 
 def main():
-    parser = argparse.ArgumentParser(description="VND-FX Hybrid Forecasting Pipeline")
-    parser.add_argument("--config", type=str, default="configs/pipeline_config.yaml", help="Path to config file")
+    parser = argparse.ArgumentParser(description="Hybrid FX Forecasting Pipeline")
+    parser.add_argument("--config", type=str, default="configs/pipeline_config.yaml")
+    parser.add_argument("--skip-data", action="store_true", help="Skip data loading step")
+    parser.add_argument("--skip-parametric", action="store_true", help="Skip ARIMA/VAR step")
+    parser.add_argument("--skip-evaluation", action="store_true", help="Skip evaluation step")
+    parser.add_argument("--run-hpo", action="store_true", help="Run Optuna HPO in Non-parametric stage")
     args = parser.parse_args()
 
-    # 0. Load Configuration
-    config = load_config(args.config)
-    banner(f"VND-FX PIPELINE: STARTING RUN [{config.get('project_name')}]")
+    cfg = load_config(args.config)
+    
+    # 1. Data Loader
+    if not args.skip_data:
+        if not run_step("Data Loader", ["uv", "run", "python", "src/01_data_loader.py", "--config", args.config]):
+            sys.exit(1)
+    else:
+        print("[INFO] Skipping Data Loader.")
 
-    # 1. Data Acquisition & Preprocessing
-    banner("STEP 1: DATA ACQUISITION & PREPROCESSING")
-    # TODO: Invoke src/01_data_loader.py logic
+    # 2. Diagnostics (Skeleton)
+    if not run_step("Diagnostics", ["Rscript", "src/02_diagnostics.R", args.config]):
+        sys.exit(1)
+        
+    # 3. Parametric Stage
+    if not args.skip_parametric:
+        if not run_step("Parametric Stage", ["Rscript", "src/03_parametric.R", args.config]):
+            sys.exit(1)
+    else:
+        print("[INFO] Skipping Parametric Stage.")
+        
+    # Read parametric summary
+    arima_diag_path = os.path.join(cfg['paths']['results'], "arima", "diagnostics.json")
+    if os.path.exists(arima_diag_path):
+        with open(arima_diag_path, 'r') as f:
+            arima_diag = json.load(f)
+            print("\n--- ARIMA Summary (p, d, q) ---")
+            for pair, res in arima_diag.items():
+                print(f"| {pair:<10} | {res['order']}")
+            print("-------------------------------\n")
+            
+    var_diag_path = os.path.join(cfg['paths']['results'], "var", "diagnostics.json")
+    if os.path.exists(var_diag_path):
+        with open(var_diag_path, 'r') as f:
+            var_diag = json.load(f)
+            print("--- VAR Summary ---")
+            print(f"| Selected Lag: {var_diag['selected_lag']}")
+            print("-------------------\n")
 
-    # 2. Structural Break Detection (Bai-Perron)
-    if config.get('structural_breaks', {}).get('enabled', True):
-        banner("STEP 2: STRUCTURAL BREAK DETECTION (R)")
-        # TODO: Invoke src/02_structural_break.R
-        # Check diagnostics.json and handle logic
+    # 4. Non-parametric Hybrid Stage (SVR/MLP)
+    # Step 1: Run with defaults first to satisfy user request for verification
+    cmd = ["uv", "run", "python", "src/04_nonparametric.py", "--config", args.config]
+    if args.run_hpo:
+        cmd.append("--run-hpo")
+        
+    if not run_step("Non-parametric Stage", cmd):
+        sys.exit(1)
+        
+    # 5. Evaluation & Statistical Reporting
+    if not args.skip_evaluation:
+        if not run_step("Evaluation", ["uv", "run", "python", "src/05_evaluation.py", "--config", args.config]):
+            sys.exit(1)
+    else:
+        print("[INFO] Skipping Evaluation Stage.")
 
-    # 3. Parametric Stage (Econometrics: ARIMA/VAR)
-    banner("STEP 3: PARAMETRIC STAGE (ARIMA/VAR - R)")
-    # TODO: Invoke src/03_parametric.R
-
-    # 4. Nonparametric Stage (ML: SVR/ANN on Residuals)
-    banner("STEP 4: NONPARAMETRIC STAGE (SVR/MLP - PYTHON)")
-    # TODO: Invoke src/04_nonparametric.py
-
-    # 5. Evaluation & Statistical Testing (DM Test)
-    banner("STEP 5: EVALUATION & STATISTICAL TESTING")
-    # TODO: Invoke src/05_evaluation.R / src/05_evaluation_plots.py
-
-    banner("VND-FX PIPELINE: COMPLETE")
+    print("[SUCCESS] End-to-End Hybrid Pipeline complete (Linear + Nonlinear Correction).")
 
 if __name__ == "__main__":
     main()

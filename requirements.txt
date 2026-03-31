@@ -12,3 +12,6 @@ statsmodels
 scipy
 joblib
 tqdm # Progress bars
+python-dotenv
+optuna
+optuna-integration
