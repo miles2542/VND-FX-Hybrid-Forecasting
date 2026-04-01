@@ -35,7 +35,11 @@ def download_with_retry(ticker, start_date, end_date, retries=3):
                     col = "Close" if "Close" in data.columns else "Adj Close"
                     col_data = data[col]
 
-                res = col_data.iloc[:, 0] if isinstance(col_data, pd.DataFrame) else col_data
+                res = (
+                    col_data.iloc[:, 0]
+                    if isinstance(col_data, pd.DataFrame)
+                    else col_data
+                )
                 return res
         except Exception as e:
             wait = 2**i
@@ -67,7 +71,12 @@ def download_and_cross_fx(config):
     end_date = config["data"]["end_date"]
     raw_path = config["paths"]["raw"]
 
-    tickers_to_load = {"USDVND": "USDVND=X", "EURUSD": "EURUSD=X", "USDJPY": "USDJPY=X", "USDCNY": "USDCNY=X"}
+    tickers_to_load = {
+        "USDVND": "USDVND=X",
+        "EURUSD": "EURUSD=X",
+        "USDJPY": "USDJPY=X",
+        "USDCNY": "USDCNY=X",
+    }
 
     data_series = {}
     for name, ticker in tickers_to_load.items():
@@ -81,7 +90,9 @@ def download_and_cross_fx(config):
                 downloaded.to_csv(os.path.join(raw_path, f"{name}_raw.csv"))
                 data_series[name] = downloaded
             else:
-                raise ValueError(f"[CRITICAL] Could not download {ticker} after retries!")
+                raise ValueError(
+                    f"[CRITICAL] Could not download {ticker} after retries!"
+                )
 
     # 1. Align on Outer Join to protect market outliers
     # Use full range from config to anchor the index
@@ -125,7 +136,9 @@ def download_interest_rates(config):
             fred = Fred(api_key=api_key)
             for i in range(3):
                 try:
-                    us_rate = fred.get_series("DFF", observation_start=start_date, observation_end=end_date)
+                    us_rate = fred.get_series(
+                        "DFF", observation_start=start_date, observation_end=end_date
+                    )
                     us_rate.to_csv(os.path.join(raw_path, "us_interest_rate_raw.csv"))
                     break
                 except Exception as e:
@@ -162,22 +175,23 @@ def preprocess_and_split(df_fx, us_rate, vn_rate, config):
     # and signifies a "fat finger" data error.
     price_cols = ["USDVND", "EURVND", "JPYVND", "CNYVND"]
     for col in price_cols:
-        # 1. Compute a 5-day rolling median (centered) to provide a local baseline
-        local_median = df[col].rolling(window=5, center=True, min_periods=1).median()
+        # 1. Compute a 5-day rolling median (TRAILING/NON-CENTERED) to provide a local baseline
+        local_median = df[col].rolling(window=5, center=False, min_periods=1).median()
 
         # 2. Compare actual price to the local median
         ratio = df[col] / local_median
 
-        # 3. Tighten thresholds:
-        # Flag if price deviates by more than 15% from its 5-day local median.
-        # This is safe for FX (even in crises, daily moves rarely hit 15%).
+        # 3. Detect outliers (±15% deviation from past median)
         mask = (ratio < 0.85) | (ratio > 1.15)
 
         if mask.any():
             dates = df.index[mask].tolist()
-            print(f"  [WARN] Data outlier detected in {col} on {dates}; using local median to clean.")
-            # Use local median to fill the outlier instead of just NaN + ffill
-            df.loc[mask, col] = local_median[mask]
+            print(
+                f"  [WARN] Data outlier detected in {col} on {dates}; imputing via ffill."
+            )
+            # Set outliers to NaN then ffill() from previously known clean data
+            df.loc[mask, col] = np.nan
+            df[col] = df[col].ffill()
 
     # Final cleanup for any edge-case NaNs
     df = df.ffill().bfill()
@@ -213,7 +227,9 @@ def preprocess_and_split(df_fx, us_rate, vn_rate, config):
     val.to_csv(os.path.join(p, "val.csv"))
     test.to_csv(os.path.join(p, "test.csv"))
 
-    print(f"[SUCCESS] Final Core Points: {len(df_clean)} | Train={len(train)}, Val={len(val)}, Test={len(test)}")
+    print(
+        f"[SUCCESS] Final Core Points: {len(df_clean)} | Train={len(train)}, Val={len(val)}, Test={len(test)}"
+    )
     return df_clean
 
 
