@@ -158,6 +158,7 @@ env.bak/
 venv.bak/
 
 # LLM rules
+AGENTS.md
 .agents/
 .kilo/
 .gemini/

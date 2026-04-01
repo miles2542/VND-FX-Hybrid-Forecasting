@@ -213,9 +213,15 @@ class ResidualHybridModel:
         X_val_s = self.scaler_x.transform(X_val)
         X_test_s = self.scaler_x.transform(X_te)
         
-        y_val_nl_s = self.model.predict(X_val_s).reshape(-1, 1)
-        y_test_nl_s = self.model.predict(X_test_s).reshape(-1, 1)
-        
+        y_val_nl_s = self.model.predict(X_val_s)
+        y_test_nl_s = self.model.predict(X_test_s)
+
+        # Ensure 2D shape for inverse_transform
+        if y_val_nl_s.ndim == 1:
+            y_val_nl_s = y_val_nl_s.reshape(-1, 1)
+        if y_test_nl_s.ndim == 1:
+            y_test_nl_s = y_test_nl_s.reshape(-1, 1)
+
         y_val_nl = self.scaler_y.inverse_transform(y_val_nl_s).ravel()
         y_test_nl = self.scaler_y.inverse_transform(y_test_nl_s).ravel()
         

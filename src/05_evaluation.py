@@ -64,6 +64,9 @@ class ModelEvaluator:
         
         for pair in df['Pair'].unique():
             pair_df = df[df['Pair'] == pair]
+
+            # Select forecast column: prefer Hybrid (ARIMA+ML) when present
+            forecast_col = 'Hybrid' if 'Hybrid' in df.columns else 'Forecast'
             
             # Store sequence data for plotting later (teammate's job)
             if pair not in self.plot_data:
@@ -74,7 +77,7 @@ class ModelEvaluator:
                 if set_df.empty:
                     continue
                 
-                metrics = self.calculate_metrics(set_df['Actual'], set_df['Forecast'])
+                metrics = self.calculate_metrics(set_df['Actual'], set_df[forecast_col])
                 metrics.update({
                     "Model": model_name,
                     "Pair": pair,
@@ -87,7 +90,7 @@ class ModelEvaluator:
                 self.plot_data[pair][key] = {
                     "Date": set_df['Date'].tolist(),
                     "Actual": set_df['Actual'].tolist(),
-                    "Forecast": set_df['Forecast'].tolist()
+                    "Forecast": set_df[forecast_col].tolist()
                 }
 
     def run(self):
