@@ -11,7 +11,10 @@ matplotlib
 statsmodels
 scipy
 joblib
-tqdm # Progress bars
+tqdm
 python-dotenv
 optuna
 optuna-integration
+rich
+plotly
+nbformat
