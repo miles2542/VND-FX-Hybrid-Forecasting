@@ -61,6 +61,21 @@ structural_breaks:
   enabled: true
   ignore_breaks: false # Pipeline will exit if breaks found unless true
 
+diagnostics:
+  run_adf_kpss: true
+  run_structural_breaks: true
+  parallel:
+    enabled: true
+    n_workers: 6
+    max_retries_per_series: 1
+    retry_backoff_seconds: 1
+    fallback_to_sequential_on_parallel_error: true
+  structural_breaks:
+    # Runtime/performance controls used by src/02_diagnostics.R
+    h: 0.15
+    max_breaks: 3
+    compute_heavy_stats: false
+
 paths:
   raw: "data/raw"
   processed: "data/processed"

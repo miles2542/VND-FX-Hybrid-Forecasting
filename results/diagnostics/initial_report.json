@@ -1,66 +1,123 @@
 {
+  "_meta": {
+    "run_started": "2026-04-02 10:05:07.136032",
+    "status": "completed",
+    "run_adf_kpss": true,
+    "run_structural_breaks": true,
+    "parallel_enabled": true,
+    "parallel_worker_source": "config",
+    "parallel_n_workers_requested": 4,
+    "parallel_n_workers": 4,
+    "available_cores": 16,
+    "max_retries_per_series": 1,
+    "retry_backoff_seconds": 1,
+    "fallback_to_sequential_on_parallel_error": true,
+    "bp_h": 0.15,
+    "bp_max_breaks": 3,
+    "bp_compute_heavy_stats": false,
+    "config_path": "configs/pipeline_config.yaml",
+    "execution_mode": "parallel",
+    "last_completed_series": "CNYVND_RET",
+    "attempts_USDVND_RET": 1,
+    "attempts_EURVND_RET": 1,
+    "attempts_JPYVND_RET": 1,
+    "attempts_CNYVND_RET": 1,
+    "run_finished": "2026-04-02 10:12:34.777694"
+  },
   "USDVND_RET": {
     "adf": {
-      "statistic": -30.2418,
-      "p_value": 0.01,
-      "conclusion": "Stationary (Reject Unit Root)"
+      "statistic": -52.9601,
+      "critical_values": [-3.43, -2.86, -2.57],
+      "decision": "Stationary (Reject Unit Root)"
     },
     "kpss": {
-      "p_value": null,
-      "status": "PENDING - Member D Task"
+      "statistic": 0.001,
+      "critical_values": [
+        [0.347, 0.463, 0.574, 0.739]
+      ],
+      "decision": "Stationary (Fail to Reject)"
     },
     "structural_breaks": {
       "found": false,
+      "indices": [],
       "dates": [],
-      "status": "PENDING - Member E Task"
+      "n_breaks": 0,
+      "bic": 47538.8718,
+      "confint": [],
+      "fstats": [],
+      "method": "Bai-Perron (HAC option, h=0.15, max_breaks=3)"
     }
   },
   "EURVND_RET": {
     "adf": {
-      "statistic": -30.2023,
-      "p_value": 0.01,
-      "conclusion": "Stationary (Reject Unit Root)"
+      "statistic": -52.9454,
+      "critical_values": [-3.43, -2.86, -2.57],
+      "decision": "Stationary (Reject Unit Root)"
     },
     "kpss": {
-      "p_value": null,
-      "status": "PENDING - Member D Task"
+      "statistic": 0.0013,
+      "critical_values": [
+        [0.347, 0.463, 0.574, 0.739]
+      ],
+      "decision": "Stationary (Fail to Reject)"
     },
     "structural_breaks": {
       "found": false,
+      "indices": [],
       "dates": [],
-      "status": "PENDING - Member E Task"
+      "n_breaks": 0,
+      "bic": 47548.1192,
+      "confint": [],
+      "fstats": [],
+      "method": "Bai-Perron (HAC option, h=0.15, max_breaks=3)"
     }
   },
   "JPYVND_RET": {
     "adf": {
-      "statistic": -30.054,
-      "p_value": 0.01,
-      "conclusion": "Stationary (Reject Unit Root)"
+      "statistic": -52.9406,
+      "critical_values": [-3.43, -2.86, -2.57],
+      "decision": "Stationary (Reject Unit Root)"
     },
     "kpss": {
-      "p_value": null,
-      "status": "PENDING - Member D Task"
+      "statistic": 0.0018,
+      "critical_values": [
+        [0.347, 0.463, 0.574, 0.739]
+      ],
+      "decision": "Stationary (Fail to Reject)"
     },
     "structural_breaks": {
       "found": false,
+      "indices": [],
       "dates": [],
-      "status": "PENDING - Member E Task"
+      "n_breaks": 0,
+      "bic": 47549.7346,
+      "confint": [],
+      "fstats": [],
+      "method": "Bai-Perron (HAC option, h=0.15, max_breaks=3)"
     }
   },
   "CNYVND_RET": {
     "adf": {
-      "statistic": -30.2101,
-      "p_value": 0.01,
-      "conclusion": "Stationary (Reject Unit Root)"
+      "statistic": -52.9433,
+      "critical_values": [-3.43, -2.86, -2.57],
+      "decision": "Stationary (Reject Unit Root)"
     },
     "kpss": {
-      "p_value": null,
-      "status": "PENDING - Member D Task"
+      "statistic": 0.0013,
+      "critical_values": [
+        [0.347, 0.463, 0.574, 0.739]
+      ],
+      "decision": "Stationary (Fail to Reject)"
     },
     "structural_breaks": {
       "found": false,
+      "indices": [],
       "dates": [],
-      "status": "PENDING - Member E Task"
+      "n_breaks": 0,
+      "bic": 47542.5537,
+      "confint": [],
+      "fstats": [],
+      "method": "Bai-Perron (HAC option, h=0.15, max_breaks=3)"
     }
   }
 }
