@@ -95,12 +95,17 @@ def download_and_cross_fx(config):
                 )
 
     # 1. Align on Outer Join to protect market outliers
-    # Use full range from config to anchor the index
-    idx = pd.date_range(start=start_date, end=end_date, freq="D")
-    fx_all = pd.DataFrame(index=idx)
-
+    # We anchor the index ONLY to dates where we actually have data, 
+    # preventing future-date padding (Leakage Protocol).
+    fx_all = pd.DataFrame()
     for name, s in data_series.items():
-        fx_all = fx_all.join(s.rename(name), how="outer")
+        if fx_all.empty:
+            fx_all = pd.DataFrame(s.rename(name))
+        else:
+            fx_all = fx_all.join(s.rename(name), how="outer")
+    
+    # Clip to config range (if data exists beyond those bounds)
+    fx_all = fx_all[(fx_all.index >= start_date) & (fx_all.index <= end_date)]
 
     # 2. Calculate Cross-Rates
     # EUR/VND = (EUR/USD) * (USD/VND)
@@ -146,12 +151,12 @@ def download_interest_rates(config):
                     print(f"  [ERROR] FRED retry {i + 1}: {e}")
 
     vn_rate_path = os.path.join(raw_path, "vn_interest_rate_raw.csv")
-    if os.path.exists(vn_rate_path):
+    if os.path.exists(vn_rate_path) and os.path.getsize(vn_rate_path) > 10:
         vn_rate = pd.read_csv(vn_rate_path, index_col=0, parse_dates=True).iloc[:, 0]
     else:
-        print("[WARNING] Vietnam policy rate missing. creating 0 placeholder.")
-        idx = pd.date_range(start=start_date, end=end_date, freq="D")
-        vn_rate = pd.Series(0.0, index=idx)
+        print("[WARNING] Vietnam policy rate missing. Creating zero-series placeholder.")
+        # We'll return an empty series and handle specific alignment in preprocess_and_split
+        vn_rate = pd.Series(dtype="float64")
 
     return us_rate, vn_rate
 
@@ -160,10 +165,23 @@ def preprocess_and_split(df_fx, us_rate, vn_rate, config):
     """Align fonts with Outer Join, apply Step-Function Ffill/Bfill, and split."""
     print("[INFO] Preprocessing with Outer-Join and Step-Function Alignment...")
 
+    # Data Horizon Anchor (Leakage Protocol)
+    # We only care about dates where we have actual FX data.
+    last_market_date = pd.to_datetime(df_fx.index).max()
+    
     # Global Join
     df = df_fx.copy()
+    df.index = pd.to_datetime(df.index)
     df = df.join(us_rate.rename("US_RATE"), how="outer")
-    df = df.join(vn_rate.rename("VN_RATE"), how="outer")
+    
+    # Handle VN_RATE placeholder alignment
+    if vn_rate.empty:
+        df["VN_RATE"] = 0.0
+    else:
+        df = df.join(vn_rate.rename("VN_RATE"), how="outer")
+
+    # Hard cap the dataframe at the last market date
+    df = df[df.index <= last_market_date]
 
     # DATA SANITY: Robust Outlier Detection (Clean-First Protocol)
     # Applied to every price column to prevent outlier propagation and median hijacking.
