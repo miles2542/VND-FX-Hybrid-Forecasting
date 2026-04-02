@@ -10,6 +10,7 @@ library(urca) # For ur.df (ADF) and ur.kpss (KPSS) tests
 library(readr)
 library(yaml)
 library(strucchange) # Library required for the Bai-Perron test
+library(sandwich)    # For HAC standard errors (kernHAC)
 
 args <- commandArgs(trailingOnly = TRUE)
 if (length(args) == 0) {
@@ -63,6 +64,8 @@ parallel_n_workers <- min(parallel_n_workers_requested, length(ret_cols))
 bp_h <- if (!is.null(config$diagnostics$structural_breaks$h)) config$diagnostics$structural_breaks$h else 0.15
 bp_max_breaks <- if (!is.null(config$diagnostics$structural_breaks$max_breaks)) config$diagnostics$structural_breaks$max_breaks else 3
 bp_compute_heavy_stats <- if (!is.null(config$diagnostics$structural_breaks$compute_heavy_stats)) config$diagnostics$structural_breaks$compute_heavy_stats else FALSE
+bp_targets <- if (!is.null(config$diagnostics$structural_breaks$targets)) config$diagnostics$structural_breaks$targets else "mean"
+bp_variance_proxy <- if (!is.null(config$diagnostics$structural_breaks$variance_proxy)) config$diagnostics$structural_breaks$variance_proxy else "squared"
 
 # Prepare output path once and write run metadata immediately to avoid stale-file confusion.
 out_dir <- file.path(config$paths$results, "diagnostics")
@@ -85,6 +88,8 @@ results[["_meta"]] <- list(
   bp_h = bp_h,
   bp_max_breaks = bp_max_breaks,
   bp_compute_heavy_stats = bp_compute_heavy_stats,
+  bp_targets = bp_targets,
+  bp_variance_proxy = bp_variance_proxy,
   config_path = config_path
 )
 write_json(results, report_path, pretty = TRUE, auto_unbox = TRUE)
@@ -111,16 +116,10 @@ process_single_series <- function(col, show_structure = FALSE) {
 
   adf_block <- list(status = "skipped")
   kpss_block <- list(status = "skipped")
-  structural_breaks_block <- list(
-    found = NA,
-    indices = list(),
-    dates = list(),
-    n_breaks = NA,
-    bic = list(),
-    confint = list(),
-    fstats = list(),
-    method = "Skipped by config (diagnostics.run_structural_breaks=false)"
-  )
+  structural_breaks_block <- list()
+  if (!run_structural_breaks) {
+    structural_breaks_block[["_status"]] <- "Skipped by config (diagnostics.run_structural_breaks=false)"
+  }
 
   if (run_adf_kpss) {
     adf <- ur.df(series, type = "drift", selectlags = "AIC")
@@ -168,46 +167,66 @@ process_single_series <- function(col, show_structure = FALSE) {
   }
 
   if (run_structural_breaks) {
-    messages <- c(messages, sprintf("[%s] Running Bai-Perron (h=%.2f, max_breaks=%d)...", col, bp_h, bp_max_breaks))
-    ts_series <- ts(series)
-    bp_candidates <- breakpoints(ts_series ~ 1, h = bp_h, breaks = bp_max_breaks)
-    bic_vals <- BIC(bp_candidates)
-    best_m <- which.min(bic_vals) - 1
-    bp_model <- breakpoints(bp_candidates, breaks = best_m)
-    b_pts <- bp_model$breakpoints
+    for (target in bp_targets) {
+      messages <- c(messages, sprintf("[%s] Running Bai-Perron for %s (h=%.2f, max_breaks=%d)...", col, target, bp_h, bp_max_breaks))
+      
+      # Prepare series based on target
+      if (target == "variance") {
+        # Proxy: (y - mean)^2 or |y - mean|
+        demeaned <- series - mean(series)
+        if (bp_variance_proxy == "squared") {
+          ts_series <- ts(demeaned^2)
+          method_label <- "Bai-Perron on Squared Residuals"
+        } else if (bp_variance_proxy == "absolute") {
+          ts_series <- ts(abs(demeaned))
+          method_label <- "Bai-Perron on Absolute Residuals"
+        } else {
+          stop(sprintf("Unknown variance_proxy: %s", bp_variance_proxy))
+        }
+      } else {
+        ts_series <- ts(series)
+        method_label <- "Bai-Perron on Mean"
+      }
 
-    heavy <- list(confint = list(), fstats = list())
-    if (bp_compute_heavy_stats && !all(is.na(b_pts))) {
-      confint_bp <- confint(bp_model, vcov = kernHAC)
-      fstats <- Fstats(ts_series ~ 1, vcov = kernHAC)
-      heavy <- list(
-        confint = as.data.frame(confint_bp),
-        fstats = as.data.frame(fstats$statistic)
-      )
-    }
+      bp_candidates <- breakpoints(ts_series ~ 1, h = bp_h, breaks = bp_max_breaks)
+      bic_vals <- BIC(bp_candidates)
+      best_m <- which.min(bic_vals) - 1
+      bp_model <- breakpoints(bp_candidates, breaks = best_m)
+      b_pts <- bp_model$breakpoints
 
-    if (all(is.na(b_pts))) {
-      structural_breaks_block <- list(
-        found = FALSE,
-        indices = list(),
-        dates = list(),
-        n_breaks = 0,
-        bic = as.numeric(bic_vals),
-        confint = heavy$confint,
-        fstats = heavy$fstats,
-        method = sprintf("Bai-Perron (HAC option, h=%.2f, max_breaks=%d)", bp_h, bp_max_breaks)
-      )
-    } else {
-      structural_breaks_block <- list(
-        found = TRUE,
-        indices = b_pts,
-        dates = as.character(series_dates[b_pts]),
-        n_breaks = length(b_pts),
-        bic = as.numeric(bic_vals),
-        confint = heavy$confint,
-        fstats = heavy$fstats,
-        method = sprintf("Bai-Perron (HAC option, h=%.2f, max_breaks=%d)", bp_h, bp_max_breaks)
-      )
+      heavy <- list(confint = list(), fstats = list())
+      if (bp_compute_heavy_stats && !all(is.na(b_pts))) {
+        confint_bp <- confint(bp_model, vcov = kernHAC)
+        fstats <- Fstats(ts_series ~ 1, vcov = kernHAC)
+        heavy <- list(
+          confint = as.data.frame(confint_bp),
+          fstats = as.data.frame(fstats$statistic)
+        )
+      }
+
+      if (all(is.na(b_pts))) {
+        structural_breaks_block[[target]] <- list(
+          found = FALSE,
+          indices = list(),
+          dates = list(),
+          n_breaks = 0,
+          bic = as.numeric(bic_vals),
+          confint = heavy$confint,
+          fstats = heavy$fstats,
+          method = sprintf("%s (HAC, h=%.2f, max_breaks=%d)", method_label, bp_h, bp_max_breaks)
+        )
+      } else {
+        structural_breaks_block[[target]] <- list(
+          found = TRUE,
+          indices = b_pts,
+          dates = as.character(series_dates[b_pts]),
+          n_breaks = length(b_pts),
+          bic = as.numeric(bic_vals),
+          confint = heavy$confint,
+          fstats = heavy$fstats,
+          method = sprintf("%s (HAC, h=%.2f, max_breaks=%d)", method_label, bp_h, bp_max_breaks)
+        )
+      }
     }
   } else {
     messages <- c(messages, sprintf("[%s] Structural breaks skipped by config.", col))
@@ -277,6 +296,7 @@ if (isTRUE(parallel_enabled) && length(ret_cols) > 1 && parallel_n_workers > 1) 
       varlist = c(
         "data", "ret_cols", "run_adf_kpss", "run_structural_breaks",
         "bp_h", "bp_max_breaks", "bp_compute_heavy_stats",
+        "bp_targets", "bp_variance_proxy",
         "process_single_series", "process_series_with_retry",
         "max_retries_per_series", "retry_backoff_seconds"
       ),
@@ -286,6 +306,7 @@ if (isTRUE(parallel_enabled) && length(ret_cols) > 1 && parallel_n_workers > 1) 
       .libPaths(c("R_libs", .libPaths()))
       library(urca)
       library(strucchange)
+      library(sandwich)
       NULL
     })
     series_results <- parallel::parLapply(

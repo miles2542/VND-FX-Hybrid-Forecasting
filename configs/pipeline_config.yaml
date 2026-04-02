@@ -74,7 +74,9 @@ diagnostics:
     # Runtime/performance controls used by src/02_diagnostics.R
     h: 0.15
     max_breaks: 3
-    compute_heavy_stats: false
+    compute_heavy_stats: true
+    targets: ["mean", "variance"]
+    variance_proxy: "squared" # "squared" or "absolute"
 
 paths:
   raw: "data/raw"
