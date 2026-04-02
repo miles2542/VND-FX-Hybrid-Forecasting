@@ -165,35 +165,36 @@ def preprocess_and_split(df_fx, us_rate, vn_rate, config):
     df = df.join(us_rate.rename("US_RATE"), how="outer")
     df = df.join(vn_rate.rename("VN_RATE"), how="outer")
 
-    # STEP-FUNCTION ALIGNMENT:
-    # Use ffill() then bfill() to ensure regional holidays/weekends don't delete data
-    df = df.ffill().bfill()
-
-    # DATA SANITY: Robust Jump Detection (Median-based)
-    # Defense: SBV manages VND within a ±5% band. A daily move > 15-20% is
-    # statistically impossible for these currencies (USD, EUR, JPY, CNY)
-    # and signifies a "fat finger" data error.
+    # DATA SANITY: Robust Outlier Detection (Clean-First Protocol)
+    # Applied to every price column to prevent outlier propagation and median hijacking.
     price_cols = ["USDVND", "EURVND", "JPYVND", "CNYVND"]
+    
+    # Absolute Floor/Ceiling guards based on VND historical economic scale
+    # Prevents typos like 21.0 or 189.0 from surviving relative checks
+    bounds = {
+        "USDVND": (5000, 50000),
+        "EURVND": (5000, 100000),
+        "JPYVND": (10, 1000),
+        "CNYVND": (100, 10000)
+    }
+
     for col in price_cols:
-        # 1. Compute a 5-day rolling median (TRAILING/NON-CENTERED) to provide a local baseline
-        local_median = df[col].rolling(window=5, center=False, min_periods=1).median()
+        # 1. 5-day robust window (centered)
+        local_median = df[col].rolling(window=5, center=True, min_periods=1).median()
 
-        # 2. Compare actual price to the local median
-        ratio = df[col] / local_median
-
-        # 3. Detect outliers (±15% deviation from past median)
-        mask = (ratio < 0.85) | (ratio > 1.15)
+        # 2. Hybrid Mask: Relative (15%) + Absolute (Fat-Finger Guard)
+        rel_mask = (df[col] / local_median < 0.85) | (df[col] / local_median > 1.15)
+        b_min, b_max = bounds.get(col, (0, np.inf))
+        abs_mask = (df[col] < b_min) | (df[col] > b_max)
+        
+        mask = rel_mask | abs_mask
 
         if mask.any():
-            dates = df.index[mask].tolist()
-            print(
-                f"  [WARN] Data outlier detected in {col} on {dates}; imputing via ffill."
-            )
-            # Set outliers to NaN then ffill() from previously known clean data
+            print(f"  [CLEAN] Purged {mask.sum()} outliers in {col} (e.g., {df.index[mask][0].date()})")
             df.loc[mask, col] = np.nan
-            df[col] = df[col].ffill()
 
-    # Final cleanup for any edge-case NaNs
+    # STEP-FUNCTION ALIGNMENT:
+    # Fill natural gaps (weekends) and purged outliers via clean ffill logic
     df = df.ffill().bfill()
 
     # Calculate % log-returns (Lu & Perron 2010)
