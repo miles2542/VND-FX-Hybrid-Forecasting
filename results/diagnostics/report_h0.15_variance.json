@@ -1,0 +1,92 @@
+{
+  "_meta": {
+    "run_started": "2026-04-02 16:47:03.616095",
+    "status": "completed",
+    "run_adf_kpss": false,
+    "run_structural_breaks": true,
+    "parallel_enabled": true,
+    "parallel_n_workers": 4,
+    "bp_h": 0.15,
+    "bp_type": "variance",
+    "config_path": "configs/pipeline_config.yaml",
+    "durations": {
+      "USDVND_RET": 294.0665,
+      "EURVND_RET": 302.8453,
+      "JPYVND_RET": 296.1542,
+      "CNYVND_RET": 295.0966
+    },
+    "run_finished": "2026-04-02 16:52:07.111523"
+  },
+  "USDVND_RET": {
+    "adf": {
+      "status": "skipped"
+    },
+    "kpss": {
+      "status": "skipped"
+    },
+    "structural_breaks": {
+      "found": false,
+      "indices": [],
+      "dates": [],
+      "n_breaks": 0,
+      "bic": 127330.5884,
+      "confint": [],
+      "fstats": [],
+      "method": "Bai-Perron (variance, h=0.15)"
+    }
+  },
+  "EURVND_RET": {
+    "adf": {
+      "status": "skipped"
+    },
+    "kpss": {
+      "status": "skipped"
+    },
+    "structural_breaks": {
+      "found": false,
+      "indices": [],
+      "dates": [],
+      "n_breaks": 0,
+      "bic": 127326.6136,
+      "confint": [],
+      "fstats": [],
+      "method": "Bai-Perron (variance, h=0.15)"
+    }
+  },
+  "JPYVND_RET": {
+    "adf": {
+      "status": "skipped"
+    },
+    "kpss": {
+      "status": "skipped"
+    },
+    "structural_breaks": {
+      "found": false,
+      "indices": [],
+      "dates": [],
+      "n_breaks": 0,
+      "bic": 127329.3079,
+      "confint": [],
+      "fstats": [],
+      "method": "Bai-Perron (variance, h=0.15)"
+    }
+  },
+  "CNYVND_RET": {
+    "adf": {
+      "status": "skipped"
+    },
+    "kpss": {
+      "status": "skipped"
+    },
+    "structural_breaks": {
+      "found": false,
+      "indices": [],
+      "dates": [],
+      "n_breaks": 0,
+      "bic": 127330.7991,
+      "confint": [],
+      "fstats": [],
+      "method": "Bai-Perron (variance, h=0.15)"
+    }
+  }
+}
