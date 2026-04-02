@@ -216,3 +216,75 @@ write_csv(do.call(rbind, var_forecasts_list), file.path(var_results_dir, "foreca
 write_csv(var_residuals_train, file.path(var_results_dir, "residuals_train.csv"))
 
 cat("\n--- Parametric Stage Completed. Results saved to results/arima/ and results/var/ ---\n")
+
+# ------------------------------------------------------------------------------
+# STAGE 3: Baselines (Academic Benchmarks)
+# ------------------------------------------------------------------------------
+run_baselines <- if (!is.null(config$baselines$enabled)) config$baselines$enabled else TRUE
+baseline_models <- if (!is.null(config$baselines$models)) config$baselines$models else c("rw", "mean", "ar1")
+
+if (run_baselines) {
+  cat("\n--- Generating Baseline Models ---\n")
+
+  baseline_rw_list <- list()
+  baseline_mean_list <- list()
+  baseline_ar1_list <- list()
+
+  for (col in ret_cols) {
+    cat(sprintf("Computing baselines for %s...\n", col))
+    
+    n_train_loc <- nrow(train_df)
+    n_val_loc <- nrow(val_df)
+    n_test_loc <- nrow(test_df)
+    actuals <- c(val_df[[col]], test_df[[col]])
+    dates <- c(val_df$Date, test_df$Date)
+    sets <- c(rep("val", n_val_loc), rep("test", n_test_loc))
+    
+    # 1. Naive Random Walk (Zero Forecast in Log-Returns)
+    if ("rw" %in% baseline_models) {
+      baseline_rw_list[[col]] <- data.frame(
+        Date = dates, Actual = actuals, Forecast = 0, Set = sets, Pair = col
+      )
+    }
+    
+    # 2. Historical Mean
+    if ("mean" %in% baseline_models) {
+      train_mean <- mean(train_df[[col]], na.rm = TRUE)
+      baseline_mean_list[[col]] <- data.frame(
+        Date = dates, Actual = actuals, Forecast = train_mean, Set = sets, Pair = col
+      )
+    }
+    
+    # 3. AR(1) OLS: r_t = b0 + b1*r_{t-1} + e_t
+    if ("ar1" %in% baseline_models) {
+      train_series <- train_df[[col]]
+      ar1_fit <- lm(train_series[2:n_train_loc] ~ train_series[1:(n_train_loc - 1)])
+      b0 <- coef(ar1_fit)[1]
+      b1 <- coef(ar1_fit)[2]
+      
+      all_series <- c(train_df[[col]], val_df[[col]], test_df[[col]])
+      forecast_indices <- (n_train_loc + 1):length(all_series)
+      ar1_forecasts <- b0 + b1 * all_series[forecast_indices - 1]
+      
+      baseline_ar1_list[[col]] <- data.frame(
+        Date = dates, Actual = actuals, Forecast = as.numeric(ar1_forecasts), Set = sets, Pair = col
+      )
+    }
+  }
+
+  # Save Baselines
+  save_baseline <- function(name, results_list) {
+    if (length(results_list) > 0) {
+      dir_path <- file.path(results_dir, name)
+      if (!dir.exists(dir_path)) dir.create(dir_path, recursive = TRUE)
+      write_csv(do.call(rbind, results_list), file.path(dir_path, "forecasts.csv"))
+      cat(sprintf("[SUCCESS] %s forecasts saved to %s\n", name, dir_path))
+    }
+  }
+
+  save_baseline("baseline_rw", baseline_rw_list)
+  save_baseline("baseline_mean", baseline_mean_list)
+  save_baseline("baseline_ar1", baseline_ar1_list)
+}
+
+cat("\n--- Baseline Generation Completed. ---\n")

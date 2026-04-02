@@ -61,6 +61,10 @@ structural_breaks:
   enabled: true
   ignore_breaks: false # Pipeline will exit if breaks found unless true
 
+baselines:
+  enabled: true
+  models: ["rw", "mean", "ar1"]
+
 diagnostics:
   run_adf_kpss: true
   run_structural_breaks: true

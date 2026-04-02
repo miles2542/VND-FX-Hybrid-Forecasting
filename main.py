@@ -31,6 +31,7 @@ def main():
     parser.add_argument("--skip-data", action="store_true", help="Skip data loading step")
     parser.add_argument("--skip-parametric", action="store_true", help="Skip ARIMA/VAR step")
     parser.add_argument("--skip-evaluation", action="store_true", help="Skip evaluation step")
+    parser.add_argument("--skip-diagnostics", action="store_true", help="Skip diagnostics (structural breaks) step")
     parser.add_argument("--run-hpo", action="store_true", help="Run Optuna HPO in Non-parametric stage")
     args = parser.parse_args()
 
@@ -44,8 +45,11 @@ def main():
         print("[INFO] Skipping Data Loader.")
 
     # 2. Diagnostics (Skeleton)
-    if not run_step("Diagnostics", ["Rscript", "src/02_diagnostics.R", args.config]):
-        sys.exit(1)
+    if not args.skip_diagnostics:
+        if not run_step("Diagnostics", ["Rscript", "src/02_diagnostics.R", args.config]):
+            sys.exit(1)
+    else:
+        print("[INFO] Skipping Diagnostics.")
         
     # 3. Parametric Stage
     if not args.skip_parametric:
@@ -53,6 +57,13 @@ def main():
             sys.exit(1)
     else:
         print("[INFO] Skipping Parametric Stage.")
+        
+    # Baselines Summary (if enabled)
+    if cfg.get('baselines', {}).get('enabled', False):
+        print("\n--- Baselines Summary ---")
+        models = cfg['baselines'].get('models', [])
+        print(f"| Active Models: {', '.join(models)}")
+        print("---------------------------\n")
         
     # Read parametric summary
     arima_diag_path = os.path.join(cfg['paths']['results'], "arima", "diagnostics.json")
