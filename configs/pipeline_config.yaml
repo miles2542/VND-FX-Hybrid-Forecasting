@@ -16,6 +16,19 @@ exogenous:
   us_interest_rate: "DFF" # FRED: Daily Fed Funds Effective Rate
   vn_interest_rate: "VNREFI" # Placeholder/Manual CSV for SBV Refinancing Rate
                              # Needs modifications when adding exogenous variable (plus data) for ARIMAX/VARX models
+  macro:
+    enabled: true
+    raw_dir: "data/raw/macro_vars"
+    files:
+      DFF: "DFF.csv"
+      DFX: "DFX.csv"
+      Gold: "Gold.csv"
+      SBV_Refi: "sbv_refi_daily.csv"
+    model_columns:
+      - "DFF_diff_lag1"
+      - "SBV_Refi_diff_lag1"
+      - "DFX_logret_lag1"
+      - "Gold_logret_lag1"
 
 data:
   start_date: "2010-01-01" # Truncated to 2010 for higher data quality, see docs\Data time range choice explanation.md
@@ -63,7 +76,7 @@ structural_breaks:
 
 diagnostics:
   run_adf_kpss: true
-  run_structural_breaks: true
+  run_structural_breaks: false
   parallel:
     enabled: true
     n_workers: 6

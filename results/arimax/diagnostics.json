@@ -1,0 +1,26 @@
+{
+  "USDVND_RET": {
+    "order": [3, 0, 0],
+    "aic": 38796.741,
+    "bic": 38848.8207,
+    "exog_cols": ["DFF_diff_lag1", "SBV_Refi_diff_lag1", "DFX_logret_lag1", "Gold_logret_lag1"]
+  },
+  "EURVND_RET": {
+    "order": [3, 0, 0],
+    "aic": 38806.4953,
+    "bic": 38858.5751,
+    "exog_cols": ["DFF_diff_lag1", "SBV_Refi_diff_lag1", "DFX_logret_lag1", "Gold_logret_lag1"]
+  },
+  "JPYVND_RET": {
+    "order": [0, 0, 3],
+    "aic": 37111.1242,
+    "bic": 37163.2039,
+    "exog_cols": ["DFF_diff_lag1", "SBV_Refi_diff_lag1", "DFX_logret_lag1", "Gold_logret_lag1"]
+  },
+  "CNYVND_RET": {
+    "order": [3, 0, 2],
+    "aic": 38507.9126,
+    "bic": 38573.0122,
+    "exog_cols": ["DFF_diff_lag1", "SBV_Refi_diff_lag1", "DFX_logret_lag1", "Gold_logret_lag1"]
+  }
+}

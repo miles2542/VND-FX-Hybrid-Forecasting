@@ -64,6 +64,16 @@ def check_local_cache(ticker_name, raw_path, config_end_date):
     return None
 
 
+def ensure_datetime_index(df_or_series):
+    """Force a normalized DatetimeIndex for safe joins on Date."""
+    obj = df_or_series.copy()
+    obj.index = pd.to_datetime(obj.index, errors="coerce")
+    if isinstance(obj.index, pd.DatetimeIndex):
+        obj.index = obj.index.tz_localize(None) if obj.index.tz is not None else obj.index
+        obj.index = obj.index.normalize()
+    return obj
+
+
 def download_and_cross_fx(config):
     """Fetch USD-VND and majors, then cross to get VND-centric pairs with Outer Merge."""
     print("[INFO] Building VND-centric FX basket via cross-rates...")
@@ -100,6 +110,7 @@ def download_and_cross_fx(config):
     fx_all = pd.DataFrame(index=idx)
 
     for name, s in data_series.items():
+        s = ensure_datetime_index(s)
         fx_all = fx_all.join(s.rename(name), how="outer")
 
     # 2. Calculate Cross-Rates
@@ -114,7 +125,9 @@ def download_and_cross_fx(config):
     for pair in ["EURVND", "JPYVND", "CNYVND"]:
         fx_all[pair].to_csv(os.path.join(raw_path, f"{pair}_raw.csv"))
 
-    return fx_all[["USDVND", "EURVND", "JPYVND", "CNYVND"]]
+    fx_out = fx_all[["USDVND", "EURVND", "JPYVND", "CNYVND"]]
+    fx_out = ensure_datetime_index(fx_out)
+    return fx_out
 
 
 def download_interest_rates(config):
@@ -125,6 +138,7 @@ def download_interest_rates(config):
     end_date = config["data"]["end_date"]
 
     api_key = os.getenv("FRED_API_KEY")
+    full_idx = pd.date_range(start=start_date, end=end_date, freq="D")
     us_rate = pd.Series(dtype="float64")
 
     if api_key:
@@ -145,29 +159,102 @@ def download_interest_rates(config):
                     time.sleep(2**i)
                     print(f"  [ERROR] FRED retry {i + 1}: {e}")
 
+    # Fallback for missing FRED key/network: load local DFF raw if present.
+    if us_rate.empty:
+        fallback_dff_path = os.path.join(raw_path, "DFF.csv")
+        if os.path.exists(fallback_dff_path):
+            tmp = pd.read_csv(fallback_dff_path)
+            if "Date" not in tmp.columns:
+                tmp = tmp.rename(columns={tmp.columns[0]: "Date"})
+            tmp["Date"] = pd.to_datetime(tmp["Date"], errors="coerce")
+            val_cols = [c for c in tmp.columns if c != "Date"]
+            if len(val_cols) >= 1:
+                us_rate = pd.Series(pd.to_numeric(tmp[val_cols[0]], errors="coerce").values, index=tmp["Date"])
+                print("  [FALLBACK] Using data/raw/DFF.csv for US_RATE.")
+
+    # Last-resort fallback to zero series to avoid complete pipeline wipeout.
+    if us_rate.empty:
+        print("  [WARNING] US rate missing. creating 0 placeholder.")
+        us_rate = pd.Series(0.0, index=full_idx)
+
     vn_rate_path = os.path.join(raw_path, "vn_interest_rate_raw.csv")
     if os.path.exists(vn_rate_path):
         vn_rate = pd.read_csv(vn_rate_path, index_col=0, parse_dates=True).iloc[:, 0]
     else:
         print("[WARNING] Vietnam policy rate missing. creating 0 placeholder.")
-        idx = pd.date_range(start=start_date, end=end_date, freq="D")
-        vn_rate = pd.Series(0.0, index=idx)
+        vn_rate = pd.Series(0.0, index=full_idx)
+
+    us_rate = ensure_datetime_index(us_rate)
+    vn_rate = ensure_datetime_index(vn_rate)
 
     return us_rate, vn_rate
 
 
-def preprocess_and_split(df_fx, us_rate, vn_rate, config):
+def _read_macro_one(path, std_name):
+    df = pd.read_csv(path)
+    if "Date" not in df.columns:
+        df = df.rename(columns={df.columns[0]: "Date"})
+    df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+
+    value_cols = [c for c in df.columns if c != "Date"]
+    if len(value_cols) != 1:
+        raise ValueError(
+            f"{os.path.basename(path)} must have exactly one value column besides Date."
+        )
+
+    df = df[["Date", value_cols[0]]].rename(columns={value_cols[0]: std_name})
+    df[std_name] = pd.to_numeric(df[std_name], errors="coerce")
+    out = df.set_index("Date")
+    out = ensure_datetime_index(out)
+    return out
+
+
+def load_macro_exogenous(config):
+    macro_cfg = config.get("exogenous", {}).get("macro", {})
+    if not macro_cfg.get("enabled", False):
+        return pd.DataFrame()
+
+    raw_dir = macro_cfg["raw_dir"]
+    files = macro_cfg["files"]
+
+    dff = _read_macro_one(os.path.join(raw_dir, files["DFF"]), "DFF")
+    dfx = _read_macro_one(os.path.join(raw_dir, files["DFX"]), "DFX")
+    gold = _read_macro_one(os.path.join(raw_dir, files["Gold"]), "Gold")
+    sbv = _read_macro_one(os.path.join(raw_dir, files["SBV_Refi"]), "SBV_Refi")
+
+    macro_df = dff.join(dfx, how="outer").join(gold, how="outer").join(sbv, how="outer")
+    return macro_df.sort_index()
+
+
+def preprocess_and_split(df_fx, us_rate, vn_rate, macro_df, config):
     """Align fonts with Outer Join, apply Step-Function Ffill/Bfill, and split."""
     print("[INFO] Preprocessing with Outer-Join and Step-Function Alignment...")
+
+    # Standardize Date index type before joins to prevent silent alignment failures.
+    df_fx = ensure_datetime_index(df_fx)
+    us_rate = ensure_datetime_index(us_rate)
+    vn_rate = ensure_datetime_index(vn_rate)
+    if macro_df is not None and not macro_df.empty:
+        macro_df = ensure_datetime_index(macro_df)
+
+    print(f"[DEBUG] df_fx.shape before merge: {df_fx.shape}")
+    print(f"[DEBUG] macro_df.shape before merge: {macro_df.shape if macro_df is not None else (0, 0)}")
 
     # Global Join
     df = df_fx.copy()
     df = df.join(us_rate.rename("US_RATE"), how="outer")
     df = df.join(vn_rate.rename("VN_RATE"), how="outer")
 
-    # STEP-FUNCTION ALIGNMENT:
-    # Use ffill() then bfill() to ensure regional holidays/weekends don't delete data
-    df = df.ffill().bfill()
+    # Merge macro variables first (outer), then ffill by rule.
+    if macro_df is not None and not macro_df.empty:
+        df = df.join(macro_df, how="outer")
+    df = df.sort_index().ffill()
+
+    # Fill edge gaps for macro variables so beginning/end NA do not wipe the sample.
+    macro_cols = ["DFF", "DFX", "Gold", "SBV_Refi"]
+    for mcol in macro_cols:
+        if mcol in df.columns:
+            df[mcol] = df[mcol].ffill().bfill()
 
     # DATA SANITY: Robust Jump Detection (Median-based)
     # Defense: SBV manages VND within a ±5% band. A daily move > 15-20% is
@@ -193,8 +280,8 @@ def preprocess_and_split(df_fx, us_rate, vn_rate, config):
             df.loc[mask, col] = np.nan
             df[col] = df[col].ffill()
 
-    # Final cleanup for any edge-case NaNs
-    df = df.ffill().bfill()
+    # Final cleanup for any edge-case NaNs under no-lookahead policy
+    df = df.ffill()
 
     # Calculate % log-returns (Lu & Perron 2010)
     ret_cols = []
@@ -207,8 +294,34 @@ def preprocess_and_split(df_fx, us_rate, vn_rate, config):
     df["IR_DIFF"] = df["VN_RATE"] - df["US_RATE"]
     df["IR_DIFF_LAGGED"] = df["IR_DIFF"].shift(1)
 
-    # Clean final set (only drop the first row with NaN return/lag)
-    df_clean = df.dropna(subset=ret_cols + ["IR_DIFF_LAGGED"]).copy()
+    # Macroeconomic exogenous features (stationary transforms)
+    df["DFF_diff"] = df["DFF"].diff()
+    df["SBV_Refi_diff"] = df["SBV_Refi"].diff()
+    df["DFX_logret"] = 100 * np.log(df["DFX"] / df["DFX"].shift(1))
+    df["Gold_logret"] = 100 * np.log(df["Gold"] / df["Gold"].shift(1))
+
+    # CRITICAL zero-leakage rule: shift all transformed exogenous series by 1 day.
+    df["DFF_diff_lag1"] = df["DFF_diff"].shift(1)
+    df["SBV_Refi_diff_lag1"] = df["SBV_Refi_diff"].shift(1)
+    df["DFX_logret_lag1"] = df["DFX_logret"].shift(1)
+    df["Gold_logret_lag1"] = df["Gold_logret"].shift(1)
+
+    exog_cols = config.get("exogenous", {}).get("macro", {}).get(
+        "model_columns",
+        [
+            "DFF_diff_lag1",
+            "SBV_Refi_diff_lag1",
+            "DFX_logret_lag1",
+            "Gold_logret_lag1",
+        ],
+    )
+
+    # Clean final set after lag/diff/log-return transformations.
+    print(f"[DEBUG] df.shape after join and feature engineering (before dropna): {df.shape}")
+    print("[DEBUG] Missing values by column before dropna:")
+    print(df.isna().sum())
+
+    df_clean = df.dropna(subset=ret_cols + ["IR_DIFF_LAGGED"] + exog_cols).copy()
     df_clean.index.name = "Date"
 
     # Chronological Split
@@ -244,4 +357,5 @@ if __name__ == "__main__":
 
     df_fx = download_and_cross_fx(cfg)
     us_rate, vn_rate = download_interest_rates(cfg)
-    preprocess_and_split(df_fx, us_rate, vn_rate, cfg)
+    macro_df = load_macro_exogenous(cfg)
+    preprocess_and_split(df_fx, us_rate, vn_rate, macro_df, cfg)

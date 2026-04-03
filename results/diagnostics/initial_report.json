@@ -1,12 +1,12 @@
 {
   "_meta": {
-    "run_started": "2026-04-02 10:05:07.136032",
+    "run_started": "2026-04-03 10:40:11.967447",
     "status": "completed",
     "run_adf_kpss": true,
-    "run_structural_breaks": true,
+    "run_structural_breaks": false,
     "parallel_enabled": true,
     "parallel_worker_source": "config",
-    "parallel_n_workers_requested": 4,
+    "parallel_n_workers_requested": 6,
     "parallel_n_workers": 4,
     "available_cores": 16,
     "max_retries_per_series": 1,
@@ -22,11 +22,11 @@
     "attempts_EURVND_RET": 1,
     "attempts_JPYVND_RET": 1,
     "attempts_CNYVND_RET": 1,
-    "run_finished": "2026-04-02 10:12:34.777694"
+    "run_finished": "2026-04-03 10:40:12.76882"
   },
   "USDVND_RET": {
     "adf": {
-      "statistic": -52.9601,
+      "statistic": -55.6929,
       "critical_values": [-3.43, -2.86, -2.57],
       "decision": "Stationary (Reject Unit Root)"
     },
@@ -38,19 +38,19 @@
       "decision": "Stationary (Fail to Reject)"
     },
     "structural_breaks": {
-      "found": false,
+      "found": null,
       "indices": [],
       "dates": [],
-      "n_breaks": 0,
-      "bic": 47538.8718,
+      "n_breaks": null,
+      "bic": [],
       "confint": [],
       "fstats": [],
-      "method": "Bai-Perron (HAC option, h=0.15, max_breaks=3)"
+      "method": "Skipped by config (diagnostics.run_structural_breaks=false)"
     }
   },
   "EURVND_RET": {
     "adf": {
-      "statistic": -52.9454,
+      "statistic": -55.7187,
       "critical_values": [-3.43, -2.86, -2.57],
       "decision": "Stationary (Reject Unit Root)"
     },
@@ -62,19 +62,19 @@
       "decision": "Stationary (Fail to Reject)"
     },
     "structural_breaks": {
-      "found": false,
+      "found": null,
       "indices": [],
       "dates": [],
-      "n_breaks": 0,
-      "bic": 47548.1192,
+      "n_breaks": null,
+      "bic": [],
       "confint": [],
       "fstats": [],
-      "method": "Bai-Perron (HAC option, h=0.15, max_breaks=3)"
+      "method": "Skipped by config (diagnostics.run_structural_breaks=false)"
     }
   },
   "JPYVND_RET": {
     "adf": {
-      "statistic": -52.9406,
+      "statistic": -55.6882,
       "critical_values": [-3.43, -2.86, -2.57],
       "decision": "Stationary (Reject Unit Root)"
     },
@@ -86,19 +86,19 @@
       "decision": "Stationary (Fail to Reject)"
     },
     "structural_breaks": {
-      "found": false,
+      "found": null,
       "indices": [],
       "dates": [],
-      "n_breaks": 0,
-      "bic": 47549.7346,
+      "n_breaks": null,
+      "bic": [],
       "confint": [],
       "fstats": [],
-      "method": "Bai-Perron (HAC option, h=0.15, max_breaks=3)"
+      "method": "Skipped by config (diagnostics.run_structural_breaks=false)"
     }
   },
   "CNYVND_RET": {
     "adf": {
-      "statistic": -52.9433,
+      "statistic": -55.6968,
       "critical_values": [-3.43, -2.86, -2.57],
       "decision": "Stationary (Reject Unit Root)"
     },
@@ -110,14 +110,14 @@
       "decision": "Stationary (Fail to Reject)"
     },
     "structural_breaks": {
-      "found": false,
+      "found": null,
       "indices": [],
       "dates": [],
-      "n_breaks": 0,
-      "bic": 47542.5537,
+      "n_breaks": null,
+      "bic": [],
       "confint": [],
       "fstats": [],
-      "method": "Bai-Perron (HAC option, h=0.15, max_breaks=3)"
+      "method": "Skipped by config (diagnostics.run_structural_breaks=false)"
     }
   }
 }

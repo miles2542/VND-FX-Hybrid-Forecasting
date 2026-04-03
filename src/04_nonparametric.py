@@ -21,7 +21,7 @@ def load_config(path):
 
 class ResidualHybridModel:
     def __init__(self, mode, model_type, config, pair_name):
-        self.mode = mode # 'arima' or 'var'
+        self.mode = mode # 'arima', 'var', 'arimax', or 'varx'
         self.model_type = model_type # 'svr' or 'mlp'
         self.config = config
         self.pair_name = pair_name
@@ -35,7 +35,7 @@ class ResidualHybridModel:
         diag_path = os.path.join(config['paths']['results'], mode, "diagnostics.json")
         with open(diag_path, 'r') as f:
             diag = json.load(f)
-            if mode == 'arima':
+            if mode in ['arima', 'arimax']:
                 self.base_lags = diag[pair_name]['order'][0]
             else:
                 self.base_lags = diag['selected_lag']
@@ -243,12 +243,20 @@ def main():
     
     config = load_config(args.config)
     results_root = config['paths']['results']
+    modes = ['arima', 'var', 'arimax', 'varx']
     
     for model_type in ['svr', 'mlp']:
-        for mode in ['arima', 'var']:
+        for mode in modes:
             print(f"\n=== Processing Hybrid: {mode.upper()} + {model_type.upper()} ===")
-            residuals_df = pd.read_csv(os.path.join(results_root, mode, "residuals_train.csv"))
-            forecasts_all = pd.read_csv(os.path.join(results_root, mode, "forecasts.csv"))
+            residuals_path = os.path.join(results_root, mode, "residuals_train.csv")
+            forecasts_path = os.path.join(results_root, mode, "forecasts.csv")
+
+            if not (os.path.exists(residuals_path) and os.path.exists(forecasts_path)):
+                print(f"  [WARN] Missing artifacts for mode={mode}. Skipping.")
+                continue
+
+            residuals_df = pd.read_csv(residuals_path)
+            forecasts_all = pd.read_csv(forecasts_path)
             ret_cols = [c for c in residuals_df.columns if c.endswith("_RET")]
             
             all_hybrids = []

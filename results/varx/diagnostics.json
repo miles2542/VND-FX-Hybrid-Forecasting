@@ -1,0 +1,5 @@
+{
+  "selected_lag": 6,
+  "aic": 49202.7391,
+  "exog_cols": ["DFF_diff_lag1", "SBV_Refi_diff_lag1", "DFX_logret_lag1", "Gold_logret_lag1"]
+}
