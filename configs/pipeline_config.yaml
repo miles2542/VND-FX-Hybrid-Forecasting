@@ -25,7 +25,7 @@ data:
   val_ratio: 0.1
   test_ratio: 0.1
   lag_exogenous: 1
-  ml_lags_max: 21
+  ml_lags_max: 30
 
 arima:
   max_p: 5
