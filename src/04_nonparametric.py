@@ -36,14 +36,30 @@ class ResidualHybridModel:
         diag_path = os.path.join(
             config["paths"]["results"], active_target, mode, "diagnostics.json"
         )
-        with open(diag_path, "r") as f:
-            diag = json.load(f)
-            if mode == "arima":
-                self.base_lags = diag[pair_name]["order"][0]
-            else:
-                self.base_lags = diag["selected_lag"]
+        self.base_lags = 1
+        try:
+            with open(diag_path, "r") as f:
+                diag = json.load(f)
 
-        if self.base_lags < 1:
+            if self.mode in ["arima", "arimax"]:
+                self.base_lags = int(diag[pair_name]["order"][0])
+            elif self.mode in ["var", "varx"]:
+                self.base_lags = int(diag["selected_lag"])
+            else:
+                print(
+                    f"  [WARN] Unknown mode '{self.mode}' for lag extraction; using fallback lag=1."
+                )
+                self.base_lags = 1
+        except Exception as e:
+            print(
+                f"  [WARN] Could not read base lags for mode={self.mode}, pair={self.pair_name} from {diag_path}: {e}. Using fallback lag=1."
+            )
+            self.base_lags = 1
+
+        if not isinstance(self.base_lags, (int, np.integer)) or self.base_lags < 1:
+            print(
+                f"  [WARN] Invalid extracted lag ({self.base_lags}) for mode={self.mode}, pair={self.pair_name}; using fallback lag=1."
+            )
             self.base_lags = 1
 
     def prepare_data(self, residuals_train, forecasts_val_test, lags=None):
@@ -346,9 +362,17 @@ def main():
     config = load_config(args.config)
     active_target = config.get("active_target", "")
     results_root = os.path.join(config["paths"]["results"], active_target)
+    modes = sorted(
+        [d for d in os.listdir(results_root) if d in ["arima", "var", "arimax", "varx"]]
+    )
+
+    if not modes:
+        raise FileNotFoundError(
+            f"No parametric result folders found in {results_root}. Expected one of: arima, var, arimax, varx"
+        )
 
     for model_type in ["svr", "mlp"]:
-        for mode in ["arima", "var"]:
+        for mode in modes:
             print(f"\n=== Processing Hybrid: {mode.upper()} + {model_type.upper()} ===")
             residuals_df = pd.read_csv(
                 os.path.join(results_root, mode, "residuals_train.csv")

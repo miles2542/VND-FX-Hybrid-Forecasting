@@ -1,6 +1,6 @@
 {
   "_meta": {
-    "run_started": "2026-04-04 03:22:14.648828",
+    "run_started": "2026-04-04 23:23:45.214712",
     "status": "completed",
     "run_adf_kpss": true,
     "run_structural_breaks": true,
@@ -25,16 +25,16 @@
     "attempts_JPYPHP_RET": 1,
     "attempts_HKDPHP_RET": 1,
     "attempts_SGDPHP_RET": 1,
-    "run_finished": "2026-04-04 03:23:58.915443"
+    "run_finished": "2026-04-04 23:26:18.123461"
   },
   "USDPHP_RET": {
     "adf": {
-      "statistic": -56.9329,
+      "statistic": -57.0571,
       "critical_values": [-3.43, -2.86, -2.57],
       "decision": "Stationary (Reject Unit Root)"
     },
     "kpss": {
-      "statistic": 0.138,
+      "statistic": 0.1378,
       "critical_values": [
         [0.347, 0.463, 0.574, 0.739]
       ],
@@ -46,7 +46,7 @@
         "indices": [],
         "dates": [],
         "n_breaks": 0,
-        "bic": 5579.824,
+        "bic": 5614.277,
         "confint": [],
         "fstats": [],
         "method": "Bai-Perron on Mean (HAC, h=0.15, max_breaks=3)"
@@ -56,7 +56,7 @@
         "indices": [],
         "dates": [],
         "n_breaks": 0,
-        "bic": 9253.8503,
+        "bic": 9305.4549,
         "confint": [],
         "fstats": [],
         "method": "Bai-Perron on Squared Residuals (HAC, h=0.15, max_breaks=3)"
@@ -173,12 +173,12 @@
   },
   "SGDPHP_RET": {
     "adf": {
-      "statistic": -58.3244,
+      "statistic": -58.8941,
       "critical_values": [-3.43, -2.86, -2.57],
       "decision": "Stationary (Reject Unit Root)"
     },
     "kpss": {
-      "statistic": 0.0806,
+      "statistic": 0.1355,
       "critical_values": [
         [0.347, 0.463, 0.574, 0.739]
       ],
@@ -190,7 +190,7 @@
         "indices": [],
         "dates": [],
         "n_breaks": 0,
-        "bic": 5672.4297,
+        "bic": 5874.1139,
         "confint": [],
         "fstats": [],
         "method": "Bai-Perron on Mean (HAC, h=0.15, max_breaks=3)"
@@ -200,7 +200,7 @@
         "indices": [],
         "dates": [],
         "n_breaks": 0,
-        "bic": 8954.2921,
+        "bic": 9352.6638,
         "confint": [],
         "fstats": [],
         "method": "Bai-Perron on Squared Residuals (HAC, h=0.15, max_breaks=3)"
