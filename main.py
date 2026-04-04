@@ -5,9 +5,22 @@ import argparse
 import sys
 import json
 
+import shutil
+
 def load_config(path):
     with open(path, 'r') as f:
         return yaml.safe_load(f)
+
+def get_python_cmd():
+    """Detect if we should use 'uv run' or standard python."""
+    # Priority 1: Check if 'uv' exists and if we are likely in a uv-managed project
+    has_uv = shutil.which("uv") is not None
+    # If running via 'uv run', UV_PYTHON or VIRTUAL_ENV is usually set
+    in_uv_env = any(k in os.environ for k in ["UV_PYTHON", "VIRTUAL_ENV"])
+    
+    if has_uv and (in_uv_env or os.path.exists("pyproject.toml")):
+        return ["uv", "run", "python"]
+    return [sys.executable]
 
 def run_step(name, command, cwd=None):
     """Orchestrate a pipeline step with env vars for R library protection."""
@@ -36,10 +49,11 @@ def main():
     args = parser.parse_args()
 
     cfg = load_config(args.config)
+    py_cmd = get_python_cmd() # Detect best environment
     
     # 1. Data Loader
     if not args.skip_data:
-        if not run_step("Data Loader", ["uv", "run", "python", "src/01_data_loader.py", "--config", args.config]):
+        if not run_step("Data Loader", py_cmd + ["src/01_data_loader.py", "--config", args.config]):
             sys.exit(1)
     else:
         print("[INFO] Skipping Data Loader.")
@@ -66,7 +80,8 @@ def main():
         print("---------------------------\n")
         
     # Read parametric summary
-    arima_diag_path = os.path.join(cfg['paths']['results'], "arima", "diagnostics.json")
+    active_target = cfg.get("active_target", "")
+    arima_diag_path = os.path.join(cfg['paths']['results'], active_target, "arima", "diagnostics.json")
     if os.path.exists(arima_diag_path):
         with open(arima_diag_path, 'r') as f:
             arima_diag = json.load(f)
@@ -75,7 +90,7 @@ def main():
                 print(f"| {pair:<10} | {res['order']}")
             print("-------------------------------\n")
             
-    var_diag_path = os.path.join(cfg['paths']['results'], "var", "diagnostics.json")
+    var_diag_path = os.path.join(cfg['paths']['results'], active_target, "var", "diagnostics.json")
     if os.path.exists(var_diag_path):
         with open(var_diag_path, 'r') as f:
             var_diag = json.load(f)
@@ -85,7 +100,7 @@ def main():
 
     # 4. Non-parametric Hybrid Stage (SVR/MLP)
     # Step 1: Run with defaults first to satisfy user request for verification
-    cmd = ["uv", "run", "python", "src/04_nonparametric.py", "--config", args.config]
+    cmd = py_cmd + ["src/04_nonparametric.py", "--config", args.config]
     if args.run_hpo:
         cmd.append("--run-hpo")
         
@@ -94,7 +109,7 @@ def main():
         
     # 5. Evaluation & Statistical Reporting
     if not args.skip_evaluation:
-        if not run_step("Evaluation", ["uv", "run", "python", "src/05_evaluation.py", "--config", args.config]):
+        if not run_step("Evaluation", py_cmd + ["src/05_evaluation.py", "--config", args.config]):
             sys.exit(1)
     else:
         print("[INFO] Skipping Evaluation Stage.")
