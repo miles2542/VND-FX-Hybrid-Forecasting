@@ -1,0 +1,210 @@
+{
+  "_meta": {
+    "run_started": "2026-04-04 03:26:06.955708",
+    "status": "completed",
+    "run_adf_kpss": true,
+    "run_structural_breaks": true,
+    "parallel_enabled": true,
+    "parallel_worker_source": "config",
+    "parallel_n_workers_requested": 6,
+    "parallel_n_workers": 5,
+    "available_cores": 16,
+    "max_retries_per_series": 1,
+    "retry_backoff_seconds": 1,
+    "fallback_to_sequential_on_parallel_error": true,
+    "bp_h": 0.15,
+    "bp_max_breaks": 3,
+    "bp_compute_heavy_stats": true,
+    "bp_targets": ["mean", "variance"],
+    "bp_variance_proxy": "squared",
+    "config_path": "configs/pipeline_config.yaml",
+    "execution_mode": "parallel",
+    "last_completed_series": "TRYEUR_RET",
+    "attempts_USDEUR_RET": 1,
+    "attempts_CNYEUR_RET": 1,
+    "attempts_GBPEUR_RET": 1,
+    "attempts_CHFEUR_RET": 1,
+    "attempts_TRYEUR_RET": 1,
+    "run_finished": "2026-04-04 03:27:49.885109"
+  },
+  "USDEUR_RET": {
+    "adf": {
+      "statistic": -46.6122,
+      "critical_values": [-3.43, -2.86, -2.57],
+      "decision": "Stationary (Reject Unit Root)"
+    },
+    "kpss": {
+      "statistic": 0.1045,
+      "critical_values": [
+        [0.347, 0.463, 0.574, 0.739]
+      ],
+      "decision": "Stationary (Fail to Reject)"
+    },
+    "structural_breaks": {
+      "mean": {
+        "found": false,
+        "indices": [],
+        "dates": [],
+        "n_breaks": 0,
+        "bic": 6722.0118,
+        "confint": [],
+        "fstats": [],
+        "method": "Bai-Perron on Mean (HAC, h=0.15, max_breaks=3)"
+      },
+      "variance": {
+        "found": false,
+        "indices": [],
+        "dates": [],
+        "n_breaks": 0,
+        "bic": 7432.5687,
+        "confint": [],
+        "fstats": [],
+        "method": "Bai-Perron on Squared Residuals (HAC, h=0.15, max_breaks=3)"
+      }
+    }
+  },
+  "CNYEUR_RET": {
+    "adf": {
+      "statistic": -49.0724,
+      "critical_values": [-3.43, -2.86, -2.57],
+      "decision": "Stationary (Reject Unit Root)"
+    },
+    "kpss": {
+      "statistic": 0.1894,
+      "critical_values": [
+        [0.347, 0.463, 0.574, 0.739]
+      ],
+      "decision": "Stationary (Fail to Reject)"
+    },
+    "structural_breaks": {
+      "mean": {
+        "found": false,
+        "indices": [],
+        "dates": [],
+        "n_breaks": 0,
+        "bic": 6923.8457,
+        "confint": [],
+        "fstats": [],
+        "method": "Bai-Perron on Mean (HAC, h=0.15, max_breaks=3)"
+      },
+      "variance": {
+        "found": false,
+        "indices": [],
+        "dates": [],
+        "n_breaks": 0,
+        "bic": 8032.511,
+        "confint": [],
+        "fstats": [],
+        "method": "Bai-Perron on Squared Residuals (HAC, h=0.15, max_breaks=3)"
+      }
+    }
+  },
+  "GBPEUR_RET": {
+    "adf": {
+      "statistic": -46.5192,
+      "critical_values": [-3.43, -2.86, -2.57],
+      "decision": "Stationary (Reject Unit Root)"
+    },
+    "kpss": {
+      "statistic": 0.059,
+      "critical_values": [
+        [0.347, 0.463, 0.574, 0.739]
+      ],
+      "decision": "Stationary (Fail to Reject)"
+    },
+    "structural_breaks": {
+      "mean": {
+        "found": false,
+        "indices": [],
+        "dates": [],
+        "n_breaks": 0,
+        "bic": 5690.6644,
+        "confint": [],
+        "fstats": [],
+        "method": "Bai-Perron on Mean (HAC, h=0.15, max_breaks=3)"
+      },
+      "variance": {
+        "found": false,
+        "indices": [],
+        "dates": [],
+        "n_breaks": 0,
+        "bic": 8191.4456,
+        "confint": [],
+        "fstats": [],
+        "method": "Bai-Perron on Squared Residuals (HAC, h=0.15, max_breaks=3)"
+      }
+    }
+  },
+  "CHFEUR_RET": {
+    "adf": {
+      "statistic": -47.1753,
+      "critical_values": [-3.43, -2.86, -2.57],
+      "decision": "Stationary (Reject Unit Root)"
+    },
+    "kpss": {
+      "statistic": 0.0799,
+      "critical_values": [
+        [0.347, 0.463, 0.574, 0.739]
+      ],
+      "decision": "Stationary (Fail to Reject)"
+    },
+    "structural_breaks": {
+      "mean": {
+        "found": false,
+        "indices": [],
+        "dates": [],
+        "n_breaks": 0,
+        "bic": 6283.9395,
+        "confint": [],
+        "fstats": [],
+        "method": "Bai-Perron on Mean (HAC, h=0.15, max_breaks=3)"
+      },
+      "variance": {
+        "found": false,
+        "indices": [],
+        "dates": [],
+        "n_breaks": 0,
+        "bic": 26851.7585,
+        "confint": [],
+        "fstats": [],
+        "method": "Bai-Perron on Squared Residuals (HAC, h=0.15, max_breaks=3)"
+      }
+    }
+  },
+  "TRYEUR_RET": {
+    "adf": {
+      "statistic": -44.5383,
+      "critical_values": [-3.43, -2.86, -2.57],
+      "decision": "Stationary (Reject Unit Root)"
+    },
+    "kpss": {
+      "statistic": 0.7536,
+      "critical_values": [
+        [0.347, 0.463, 0.574, 0.739]
+      ],
+      "decision": "Non-Stationary (Reject Null)"
+    },
+    "structural_breaks": {
+      "mean": {
+        "found": false,
+        "indices": [],
+        "dates": [],
+        "n_breaks": 0,
+        "bic": 11634.6422,
+        "confint": [],
+        "fstats": [],
+        "method": "Bai-Perron on Mean (HAC, h=0.15, max_breaks=3)"
+      },
+      "variance": {
+        "found": false,
+        "indices": [],
+        "dates": [],
+        "n_breaks": 0,
+        "bic": 29241.181,
+        "confint": [],
+        "fstats": [],
+        "method": "Bai-Perron on Squared Residuals (HAC, h=0.15, max_breaks=3)"
+      }
+    }
+  }
+}

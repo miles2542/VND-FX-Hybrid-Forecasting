@@ -1,0 +1,87 @@
+  HYBRID FORECASTING ANALYSIS: MYR
+
+1. Time Series Diagnostics
+                                                                     
+   Pair           ADF      KPSS     Breaks (Mean)     Breaks (Var)   
+ ─────────────────────────────────────────────────────────────────── 
+   USDMYR_RET     Stat     Stat           0                0         
+   CNYMYR_RET     Stat     Stat           0                0         
+   EURMYR_RET     Stat     Stat           0                0         
+   JPYMYR_RET     Stat     Stat           0                0         
+   SGDMYR_RET     Stat     Stat           0                0         
+                                                                     
+
+2. Test Set Performance Comparison
+                            Pair: USDMYR_RET                            
+                                                                        
+  Rank   Model Name                  MSE (100x)   MAE (%)   vs. RW (%)  
+ ────────────────────────────────────────────────────────────────────── 
+     1   ⭐ HYBRID VAR SVR             0.147409    0.2729       -7.38%  
+     2   VAR                           0.150594    0.2791       -5.38%  
+     3   HYBRID VAR MLP                0.156521    0.2860       -1.65%  
+     4   BASELINE RW                   0.159152    0.2831            -  
+     5   BASELINE MEAN                 0.159561    0.2837       +0.26%  
+     6   HYBRID ARIMA MLP              0.164687    0.2887       +3.48%  
+     7   HYBRID ARIMA SVR              0.165937    0.2884       +4.26%  
+     8   BASELINE AR1                  0.167336    0.2947       +5.14%  
+     9   ARIMA                         0.168776    0.2946       +6.05%  
+                                                                        
+
+                            Pair: CNYMYR_RET                            
+                                                                        
+  Rank   Model Name                  MSE (100x)   MAE (%)   vs. RW (%)  
+ ────────────────────────────────────────────────────────────────────── 
+     1   ⭐ HYBRID VAR SVR             0.141903    0.2685       -1.94%  
+     2   BASELINE RW                   0.144716    0.2682            -  
+     3   VAR                           0.144792    0.2724       +0.05%  
+     4   BASELINE MEAN                 0.144975    0.2689       +0.18%  
+     5   HYBRID VAR MLP                0.147114    0.2729       +1.66%  
+     6   BASELINE AR1                  0.149610    0.2756       +3.38%  
+     7   ARIMA                         0.153642    0.2766       +6.17%  
+     8   HYBRID ARIMA SVR              0.155116    0.2767       +7.19%  
+     9   HYBRID ARIMA MLP              0.155326    0.2763       +7.33%  
+                                                                        
+
+                            Pair: EURMYR_RET                            
+                                                                        
+  Rank   Model Name                  MSE (100x)   MAE (%)   vs. RW (%)  
+ ────────────────────────────────────────────────────────────────────── 
+     1   ⭐ ARIMA                      0.257702    0.3838       -4.83%  
+     2   BASELINE AR1                  0.258546    0.3848       -4.52%  
+     3   HYBRID ARIMA MLP              0.258662    0.3835       -4.48%  
+     4   HYBRID ARIMA SVR              0.260013    0.3845       -3.98%  
+     5   VAR                           0.269248    0.3894       -0.57%  
+     6   BASELINE MEAN                 0.270772    0.3905       -0.01%  
+     7   BASELINE RW                   0.270793    0.3905            -  
+     8   HYBRID VAR MLP                0.270950    0.3894       +0.06%  
+     9   HYBRID VAR SVR                0.273168    0.3938       +0.88%  
+                                                                        
+
+                            Pair: JPYMYR_RET                            
+                                                                        
+  Rank   Model Name                  MSE (100x)   MAE (%)   vs. RW (%)  
+ ────────────────────────────────────────────────────────────────────── 
+     1   ⭐ BASELINE AR1               0.385150    0.4857       -2.77%  
+     2   ARIMA                         0.389578    0.4896       -1.65%  
+     3   HYBRID VAR MLP                0.390113    0.4890       -1.51%  
+     4   VAR                           0.392482    0.4910       -0.92%  
+     5   HYBRID VAR SVR                0.393143    0.4905       -0.75%  
+     6   HYBRID ARIMA MLP              0.395694    0.4938       -0.11%  
+     7   BASELINE MEAN                 0.395940    0.4945       -0.04%  
+     8   BASELINE RW                   0.396111    0.4946            -  
+     9   HYBRID ARIMA SVR              0.415108    0.5045       +4.80%  
+                                                                        
+
+                            Pair: SGDMYR_RET                            
+                                                                        
+  Rank   Model Name                  MSE (100x)   MAE (%)   vs. RW (%)  
+ ────────────────────────────────────────────────────────────────────── 
+     1   ⭐ BASELINE AR1               0.133404    0.2792       -9.47%  
+     2   HYBRID ARIMA MLP              0.139042    0.2850       -5.65%  
+     3   HYBRID ARIMA SVR              0.139070    0.2842       -5.63%  
+     4   ARIMA                         0.141441    0.2884       -4.02%  
+     5   BASELINE RW                   0.147362    0.2855            -  
+     6   BASELINE MEAN                 0.147756    0.2859       +0.27%  
+     7   VAR                           0.150174    0.2957       +1.91%  
+     8   HYBRID VAR MLP                0.150731    0.2963       +2.29%  
+     9   HYBRID VAR SVR                0.150858    0.2956       +2.37%  

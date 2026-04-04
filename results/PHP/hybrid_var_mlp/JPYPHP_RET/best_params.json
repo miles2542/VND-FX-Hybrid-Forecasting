@@ -1,0 +1,9 @@
+{
+  "alpha": 0.7667110400966113,
+  "learning_rate_init": 0.0018719307499343847,
+  "hidden_layer_sizes": [
+    21,
+    41
+  ],
+  "ml_lags": 7
+}

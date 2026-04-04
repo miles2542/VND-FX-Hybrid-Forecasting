@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+.r1 {color: #000080; text-decoration-color: #000080}
+.r2 {color: #c0c0c0; text-decoration-color: #c0c0c0; font-weight: bold}
+.r3 {color: #008080; text-decoration-color: #008080; font-weight: bold; font-style: italic}
+.r4 {color: #008080; text-decoration-color: #008080; font-weight: bold; text-decoration: underline}
+.r5 {color: #008080; text-decoration-color: #008080; font-weight: bold}
+.r6 {color: #7f7f7f; text-decoration-color: #7f7f7f}
+.r7 {color: #008000; text-decoration-color: #008000}
+.r8 {color: #008000; text-decoration-color: #008000; font-weight: bold; text-decoration: underline}
+.r9 {font-style: italic}
+.r10 {color: #c0c0c0; text-decoration-color: #c0c0c0; font-style: italic}
+.r11 {color: #008000; text-decoration-color: #008000; font-weight: bold}
+.r12 {color: #7f7f7f; text-decoration-color: #7f7f7f; background-color: #263238; font-weight: bold}
+.r13 {background-color: #263238}
+.r14 {background-color: #263238; font-weight: bold}
+.r15 {color: #008000; text-decoration-color: #008000; background-color: #263238; font-weight: bold}
+.r16 {color: #7f7f7f; text-decoration-color: #7f7f7f; background-color: #333300; font-style: italic}
+.r17 {background-color: #333300}
+.r18 {background-color: #333300; font-style: italic}
+.r19 {color: #800000; text-decoration-color: #800000}
+body {
+    color: #000000;
+    background-color: #ffffff;
+}
+</style>
+</head>
+<body>
+    <pre style="font-family:Menlo,'DejaVu Sans Mono',consolas,'Courier New',monospace"><code style="font-family:inherit">
+<span class="r1">  </span><span class="r2">HYBRID FORECASTING ANALYSIS: </span><span class="r3">SGD</span>
+
+<span class="r4">1</span><span class="r4">. Time Series Diagnostics</span>
+                                                                     
+ <span class="r5">  Pair        </span> <span class="r5">  ADF   </span> <span class="r5">  KPSS  </span> <span class="r5">  Breaks (Mean)  </span> <span class="r5">  Breaks (Var)  </span> 
+ ─────────────────────────────────────────────────────────────────── 
+ <span class="r6">  USDSGD_RET  </span>   <span class="r7">Stat</span>     <span class="r7">Stat</span>           0                0         
+ <span class="r6">  CNYSGD_RET  </span>   <span class="r7">Stat</span>     <span class="r7">Stat</span>           0                0         
+ <span class="r6">  EURSGD_RET  </span>   <span class="r7">Stat</span>     <span class="r7">Stat</span>           0                0         
+ <span class="r6">  MYRSGD_RET  </span>   <span class="r7">Stat</span>     <span class="r7">Stat</span>           0                0         
+ <span class="r6">  JPYSGD_RET  </span>   <span class="r7">Stat</span>     <span class="r7">Stat</span>           0                0         
+                                                                     
+
+<span class="r4">2</span><span class="r8">. Test Set Performance Comparison</span>
+<span class="r9">                            </span><span class="r10">Pair: USDSGD_RET</span><span class="r9">                            </span>
+                                                                        
+ <span class="r11"> Rank </span> <span class="r11"> Model Name                </span> <span class="r11"> MSE (100x) </span> <span class="r11"> MAE (%) </span> <span class="r11"> vs. RW (%) </span> 
+ ────────────────────────────────────────────────────────────────────── 
+ <span class="r12">    1 </span><span class="r13"> </span><span class="r14"> ⭐ ARIMA                  </span><span class="r13"> </span><span class="r14">   0.099452 </span><span class="r13"> </span><span class="r14">  0.2363 </span><span class="r13"> </span><span class="r14">     </span><span class="r15">-0.84%</span><span class="r14"> </span> 
+ <span class="r6">    2 </span>  HYBRID ARIMA SVR              0.099532    0.2362       <span class="r7">-0.76%</span>  
+ <span class="r6">    3 </span>  HYBRID ARIMA MLP              0.099642    0.2375       <span class="r7">-0.65%</span>  
+ <span class="r6">    4 </span>  BASELINE AR1                  0.099930    0.2366       <span class="r7">-0.37%</span>  
+ <span class="r6">    5 </span>  BASELINE MEAN                 0.100286    0.2371       <span class="r7">-0.01%</span>  
+ <span class="r16">    6 </span><span class="r17"> </span><span class="r18"> BASELINE RW               </span><span class="r17"> </span><span class="r18">   0.100299 </span><span class="r17"> </span><span class="r18">  0.2370 </span><span class="r17"> </span><span class="r18">          - </span> 
+ <span class="r6">    7 </span>  HYBRID VAR MLP                0.108263    0.2477       <span class="r19">+7.94%</span>  
+ <span class="r6">    8 </span>  VAR                           0.108976    0.2484       <span class="r19">+8.65%</span>  
+ <span class="r6">    9 </span>  HYBRID VAR SVR                0.108986    0.2484       <span class="r19">+8.66%</span>  
+                                                                        
+
+<span class="r9">                            </span><span class="r10">Pair: CNYSGD_RET</span><span class="r9">                            </span>
+                                                                        
+ <span class="r11"> Rank </span> <span class="r11"> Model Name                </span> <span class="r11"> MSE (100x) </span> <span class="r11"> MAE (%) </span> <span class="r11"> vs. RW (%) </span> 
+ ────────────────────────────────────────────────────────────────────── 
+ <span class="r12">    1 </span><span class="r13"> </span><span class="r14"> ⭐ HYBRID ARIMA MLP       </span><span class="r13"> </span><span class="r14">   0.099945 </span><span class="r13"> </span><span class="r14">  0.2281 </span><span class="r13"> </span><span class="r14">     </span><span class="r15">-3.12%</span><span class="r14"> </span> 
+ <span class="r6">    2 </span>  HYBRID ARIMA SVR              0.100167    0.2285       <span class="r7">-2.91%</span>  
+ <span class="r6">    3 </span>  ARIMA                         0.100289    0.2288       <span class="r7">-2.79%</span>  
+ <span class="r6">    4 </span>  BASELINE AR1                  0.100592    0.2302       <span class="r7">-2.49%</span>  
+ <span class="r16">    5 </span><span class="r17"> </span><span class="r18"> BASELINE RW               </span><span class="r17"> </span><span class="r18">   0.103165 </span><span class="r17"> </span><span class="r18">  0.2335 </span><span class="r17"> </span><span class="r18">          - </span> 
+ <span class="r6">    6 </span>  BASELINE MEAN                 0.103181    0.2336       <span class="r19">+0.01%</span>  
+ <span class="r6">    7 </span>  HYBRID VAR SVR                0.105869    0.2385       <span class="r19">+2.62%</span>  
+ <span class="r6">    8 </span>  VAR                           0.107353    0.2410       <span class="r19">+4.06%</span>  
+ <span class="r6">    9 </span>  HYBRID VAR MLP                0.108041    0.2430       <span class="r19">+4.73%</span>  
+                                                                        
+
+<span class="r9">                            </span><span class="r10">Pair: EURSGD_RET</span><span class="r9">                            </span>
+                                                                        
+ <span class="r11"> Rank </span> <span class="r11"> Model Name                </span> <span class="r11"> MSE (100x) </span> <span class="r11"> MAE (%) </span> <span class="r11"> vs. RW (%) </span> 
+ ────────────────────────────────────────────────────────────────────── 
+ <span class="r12">    1 </span><span class="r13"> </span><span class="r14"> ⭐ BASELINE AR1           </span><span class="r13"> </span><span class="r14">   0.072866 </span><span class="r13"> </span><span class="r14">  0.1941 </span><span class="r13"> </span><span class="r14">     </span><span class="r15">-0.05%</span><span class="r14"> </span> 
+ <span class="r16">    2 </span><span class="r17"> </span><span class="r18"> BASELINE RW               </span><span class="r17"> </span><span class="r18">   0.072903 </span><span class="r17"> </span><span class="r18">  0.1940 </span><span class="r17"> </span><span class="r18">          - </span> 
+ <span class="r6">    3 </span>  BASELINE MEAN                 0.073015    0.1941       <span class="r19">+0.15%</span>  
+ <span class="r6">    4 </span>  HYBRID ARIMA SVR              0.073037    0.1937       <span class="r19">+0.18%</span>  
+ <span class="r6">    5 </span>  ARIMA                         0.073043    0.1937       <span class="r19">+0.19%</span>  
+ <span class="r6">    6 </span>  VAR                           0.073277    0.1949       <span class="r19">+0.51%</span>  
+ <span class="r6">    7 </span>  HYBRID VAR SVR                0.073593    0.1943       <span class="r19">+0.95%</span>  
+ <span class="r6">    8 </span>  HYBRID ARIMA MLP              0.073805    0.1953       <span class="r19">+1.24%</span>  
+ <span class="r6">    9 </span>  HYBRID VAR MLP                0.074330    0.1949       <span class="r19">+1.96%</span>  
+                                                                        
+
+<span class="r9">                            </span><span class="r10">Pair: MYRSGD_RET</span><span class="r9">                            </span>
+                                                                        
+ <span class="r11"> Rank </span> <span class="r11"> Model Name                </span> <span class="r11"> MSE (100x) </span> <span class="r11"> MAE (%) </span> <span class="r11"> vs. RW (%) </span> 
+ ────────────────────────────────────────────────────────────────────── 
+ <span class="r12">    1 </span><span class="r13"> </span><span class="r14"> ⭐ BASELINE AR1           </span><span class="r13"> </span><span class="r14">   0.133362 </span><span class="r13"> </span><span class="r14">  0.2792 </span><span class="r13"> </span><span class="r14">     </span><span class="r15">-9.49%</span><span class="r14"> </span> 
+ <span class="r6">    2 </span>  HYBRID ARIMA SVR              0.138112    0.2839       <span class="r7">-6.26%</span>  
+ <span class="r6">    3 </span>  ARIMA                         0.141420    0.2883       <span class="r7">-4.02%</span>  
+ <span class="r6">    4 </span>  HYBRID ARIMA MLP              0.144253    0.2918       <span class="r7">-2.09%</span>  
+ <span class="r16">    5 </span><span class="r17"> </span><span class="r18"> BASELINE RW               </span><span class="r17"> </span><span class="r18">   0.147338 </span><span class="r17"> </span><span class="r18">  0.2854 </span><span class="r17"> </span><span class="r18">          - </span> 
+ <span class="r6">    6 </span>  BASELINE MEAN                 0.147731    0.2859       <span class="r19">+0.27%</span>  
+ <span class="r6">    7 </span>  VAR                           0.150307    0.2957       <span class="r19">+2.02%</span>  
+ <span class="r6">    8 </span>  HYBRID VAR MLP                0.151124    0.2938       <span class="r19">+2.57%</span>  
+ <span class="r6">    9 </span>  HYBRID VAR SVR                0.152805    0.2982       <span class="r19">+3.71%</span>  
+                                                                        
+
+<span class="r9">                            </span><span class="r10">Pair: JPYSGD_RET</span><span class="r9">                            </span>
+                                                                        
+ <span class="r11"> Rank </span> <span class="r11"> Model Name                </span> <span class="r11"> MSE (100x) </span> <span class="r11"> MAE (%) </span> <span class="r11"> vs. RW (%) </span> 
+ ────────────────────────────────────────────────────────────────────── 
+ <span class="r12">    1 </span><span class="r13"> </span><span class="r14"> ⭐ BASELINE AR1           </span><span class="r13"> </span><span class="r14">   0.234147 </span><span class="r13"> </span><span class="r14">  0.3633 </span><span class="r13"> </span><span class="r14">     </span><span class="r15">-0.92%</span><span class="r14"> </span> 
+ <span class="r6">    2 </span>  ARIMA                         0.234530    0.3638       <span class="r7">-0.75%</span>  
+ <span class="r6">    3 </span>  HYBRID ARIMA MLP              0.234631    0.3647       <span class="r7">-0.71%</span>  
+ <span class="r6">    4 </span>  BASELINE MEAN                 0.235911    0.3636       <span class="r7">-0.17%</span>  
+ <span class="r16">    5 </span><span class="r17"> </span><span class="r18"> BASELINE RW               </span><span class="r17"> </span><span class="r18">   0.236310 </span><span class="r17"> </span><span class="r18">  0.3638 </span><span class="r17"> </span><span class="r18">          - </span> 
+ <span class="r6">    6 </span>  HYBRID ARIMA SVR              0.238537    0.3691       <span class="r19">+0.94%</span>  
+ <span class="r6">    7 </span>  HYBRID VAR SVR                0.238748    0.3685       <span class="r19">+1.03%</span>  
+ <span class="r6">    8 </span>  VAR                           0.238916    0.3687       <span class="r19">+1.10%</span>  
+ <span class="r6">    9 </span>  HYBRID VAR MLP                0.240018    0.3702       <span class="r19">+1.57%</span>  
+                                                                        
+
+</code></pre>
+</body>
+</html>
