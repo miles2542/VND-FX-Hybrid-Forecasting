@@ -48,84 +48,114 @@ def download_with_retry(ticker, start_date, end_date, retries=3):
     return None
 
 
-def check_local_cache(ticker_name, raw_path, config_end_date):
-    """Check if raw file exists and is recent (within 24h of target end)."""
+def check_local_cache(ticker_name, raw_path):
+    """Check if raw file exists and is recent (within 24h)."""
     file_path = os.path.join(raw_path, f"{ticker_name}_raw.csv")
     if not os.path.exists(file_path):
         return None
 
-    # Check modification time
     file_time = datetime.fromtimestamp(os.path.getmtime(file_path))
-
-    # If file was updated recently or covers the end date, use it
     if datetime.now() - file_time < timedelta(hours=24):
-        print(f"  [CACHE] Using local {ticker_name}_raw.csv (recent update).")
+        print(f"  [CACHE] Using local {ticker_name}_raw.csv.")
         return pd.read_csv(file_path, index_col=0, parse_dates=True).iloc[:, 0]
     return None
 
 
 def download_and_cross_fx(config):
-    """Fetch USD-VND and majors, then cross to get VND-centric pairs with Outer Merge."""
-    print("[INFO] Building VND-centric FX basket via cross-rates...")
-    start_date = config["data"]["start_date"]
-    end_date = config["data"]["end_date"]
-    raw_path = config["paths"]["raw"]
-
-    tickers_to_load = {
-        "USDVND": "USDVND=X",
-        "EURUSD": "EURUSD=X",
-        "USDJPY": "USDJPY=X",
-        "USDCNY": "USDCNY=X",
+    """Build target-centric FX basket using a standardized USD-Pivot architecture."""
+    target = config["active_target"]
+    target_cfg = config["targets"][target]
+    
+    # Directional Map: True if ticker is CCY/USD (Base USD), False if USD/CCY (Term USD)
+    # yfinance convention: EURUSD=X (Value of 1 EUR in USD) vs USDJPY=X (Value of 1 USD in JPY)
+    # We want to standardize everything to USD_BASE: Price of 1 USD in CCY units.
+    DIRECTION_MAP = {
+        "EUR": ("EURUSD=X", True),
+        "GBP": ("GBPUSD=X", True),
+        "AUD": ("AUDUSD=X", True),
+        "NZD": ("NZDUSD=X", True),
+        "JPY": ("USDJPY=X", False),
+        "CNY": ("USDCNY=X", False),
+        "IDR": ("USDIDR=X", False),
+        "THB": ("USDTHB=X", False),
+        "PHP": ("USDPHP=X", False),
+        "HKD": ("USDHKD=X", False),
+        "SGD": ("USDSGD=X", False),
+        "MYR": ("USDMYR=X", False),
+        "VND": ("USDVND=X", False),
+        "INR": ("USDINR=X", False),
+        "CHF": ("USDCHF=X", False),
+        "TRY": ("USDTRY=X", False),
+        "KRW": ("USDKRW=X", False)
     }
 
-    data_series = {}
-    for name, ticker in tickers_to_load.items():
-        # Check cache first
-        cached = check_local_cache(name, raw_path, end_date)
-        if cached is not None:
-            data_series[name] = cached
-        else:
-            downloaded = download_with_retry(ticker, start_date, end_date)
-            if downloaded is not None:
-                downloaded.to_csv(os.path.join(raw_path, f"{name}_raw.csv"))
-                data_series[name] = downloaded
-            else:
-                raise ValueError(
-                    f"[CRITICAL] Could not download {ticker} after retries!"
-                )
-
-    # 1. Align on Outer Join to protect market outliers
-    # We anchor the index ONLY to dates where we actually have data, 
-    # preventing future-date padding (Leakage Protocol).
-    fx_all = pd.DataFrame()
-    for name, s in data_series.items():
-        if fx_all.empty:
-            fx_all = pd.DataFrame(s.rename(name))
-        else:
-            fx_all = fx_all.join(s.rename(name), how="outer")
+    print(f"[INFO] Building {target}-centric FX basket using USD-Pivot...")
+    start_date = config["data"]["start_date"]
+    end_date = config["data"]["end_date"]
     
-    # Clip to config range (if data exists beyond those bounds)
-    fx_all = fx_all[(fx_all.index >= start_date) & (fx_all.index <= end_date)]
+    raw_path = os.path.join(config["paths"]["raw"], target)
+    os.makedirs(raw_path, exist_ok=True)
 
-    # 2. Calculate Cross-Rates
-    # EUR/VND = (EUR/USD) * (USD/VND)
-    fx_all["EURVND"] = fx_all["EURUSD"] * fx_all["USDVND"]
-    # JPY/VND = USD/VND / USD/JPY
-    fx_all["JPYVND"] = fx_all["USDVND"] / fx_all["USDJPY"]
-    # CNY/VND = USD/VND / USD/CNY
-    fx_all["CNYVND"] = fx_all["USDVND"] / fx_all["USDCNY"]
+    # 1. Collect all currencies involved
+    all_ccys = {target} | set(target_cfg["partners"])
+    if "USD" in all_ccys:
+        all_ccys.add("USD")
+    
+    # 2. Extract USD_BASE for each (Price of 1 USD in CCY units)
+    usd_pivot_rates = pd.DataFrame()
+    
+    for ccy in all_ccys:
+        if ccy == "USD":
+            usd_pivot_rates["USD"] = 1.0
+            continue
+            
+        ticker, is_base_usd = DIRECTION_MAP.get(ccy, (f"USD{ccy}=X", False))
+        
+        # Download or Cache
+        cached = check_local_cache(ccy, raw_path)
+        if cached is not None:
+            raw_data = cached
+        else:
+            raw_data = download_with_retry(ticker, start_date, end_date)
+            if raw_data is not None:
+                raw_data.to_csv(os.path.join(raw_path, f"{ccy}_raw.csv"))
+            else:
+                raise ValueError(f"[CRITICAL] Failed to download {ticker} for {ccy}!")
 
-    # 3. Clean and Save raw artifacts
-    for pair in ["EURVND", "JPYVND", "CNYVND"]:
-        fx_all[pair].to_csv(os.path.join(raw_path, f"{pair}_raw.csv"))
+        # Normalize to USD_BASE: 1 USD = ? CCY
+        if is_base_usd:
+            usd_base = 1.0 / raw_data
+        else:
+            usd_base = raw_data
+            
+        if usd_pivot_rates.empty:
+            usd_pivot_rates = pd.DataFrame(usd_base.rename(ccy))
+        else:
+            usd_pivot_rates = usd_pivot_rates.join(usd_base.rename(ccy), how="outer")
 
-    return fx_all[["USDVND", "EURVND", "JPYVND", "CNYVND"]]
+    # 3. Finalize Basket: Partner(A) / Target(B) = (USD/Target) / (USD/Partner)
+    # This cancels out USD and gives us target units per partner unit.
+    fx_final = pd.DataFrame(index=usd_pivot_rates.index)
+    final_cols = []
+    
+    for partner in target_cfg["partners"]:
+        pair_name = f"{partner}{target}"
+        
+        # Math: Price of 1 Partner Unit in Target Units
+        # (USD/Target) / (USD/Partner) = (Target/USD) * (USD/Partner) = Target/Partner... No.
+        # Logic: 1 USD = T Target Units. 1 USD = P Partner Units.
+        # So P Partner Units = T Target Units.
+        # 1 Partner Unit = T / P Target Units.
+        fx_final[pair_name] = usd_pivot_rates[target] / usd_pivot_rates[partner]
+        final_cols.append(pair_name)
+
+    return fx_final[final_cols]
 
 
 def download_interest_rates(config):
-    """Download US interest rate from FRED with retry logic."""
-    print("[INFO] Fetching interest rate data (FRED)...")
-    raw_path = config["paths"]["raw"]
+    """Download US interest rate as base proxy."""
+    target = config["active_target"]
+    raw_path = os.path.join(config["paths"]["raw"], target)
     start_date = config["data"]["start_date"]
     end_date = config["data"]["end_date"]
 
@@ -133,122 +163,96 @@ def download_interest_rates(config):
     us_rate = pd.Series(dtype="float64")
 
     if api_key:
-        # Check cache
-        cached = check_local_cache("us_interest_rate", raw_path, end_date)
+        cached = check_local_cache("us_interest_rate", raw_path)
         if cached is not None:
             us_rate = cached
         else:
             fred = Fred(api_key=api_key)
             for i in range(3):
                 try:
-                    us_rate = fred.get_series(
-                        "DFF", observation_start=start_date, observation_end=end_date
-                    )
+                    us_rate = fred.get_series("DFF", observation_start=start_date, observation_end=end_date)
                     us_rate.to_csv(os.path.join(raw_path, "us_interest_rate_raw.csv"))
                     break
                 except Exception as e:
                     time.sleep(2**i)
-                    print(f"  [ERROR] FRED retry {i + 1}: {e}")
+                    print(f"  [ERROR] FRED retry: {e}")
 
-    vn_rate_path = os.path.join(raw_path, "vn_interest_rate_raw.csv")
-    if os.path.exists(vn_rate_path) and os.path.getsize(vn_rate_path) > 10:
-        vn_rate = pd.read_csv(vn_rate_path, index_col=0, parse_dates=True).iloc[:, 0]
-    else:
-        print("[WARNING] Vietnam policy rate missing. Creating zero-series placeholder.")
-        # We'll return an empty series and handle specific alignment in preprocess_and_split
-        vn_rate = pd.Series(dtype="float64")
-
-    return us_rate, vn_rate
+    # For now, local target rates are placeholders (handled by teammate later)
+    target_rate = pd.Series(dtype="float64")
+    return us_rate, target_rate
 
 
-def preprocess_and_split(df_fx, us_rate, vn_rate, config):
-    """Align fonts with Outer Join, apply Step-Function Ffill/Bfill, and split."""
-    print("[INFO] Preprocessing with Outer-Join and Step-Function Alignment...")
+def preprocess_and_split(df_fx, us_rate, target_rate, config):
+    """Clean, fill, transform, and split data into subfolders."""
+    target = config["active_target"]
+    print(f"[INFO] Preprocessing {target} basket...")
 
-    # Data Horizon Anchor (Leakage Protocol)
-    # We only care about dates where we have actual FX data.
     last_market_date = pd.to_datetime(df_fx.index).max()
-    
-    # Global Join
     df = df_fx.copy()
     df.index = pd.to_datetime(df.index)
-    df = df.join(us_rate.rename("US_RATE"), how="outer")
     
-    # Handle VN_RATE placeholder alignment
-    if vn_rate.empty:
-        df["VN_RATE"] = 0.0
-    else:
-        df = df.join(vn_rate.rename("VN_RATE"), how="outer")
-
-    # Hard cap the dataframe at the last market date
+    # Align Interest Rate
+    df = df.join(us_rate.rename("REF_RATE"), how="outer")
+    df["TARGET_RATE"] = 0.0 # Placeholder
     df = df[df.index <= last_market_date]
 
-    # DATA SANITY: Robust Outlier Detection (Clean-First Protocol)
-    # Applied to every price column to prevent outlier propagation and median hijacking.
-    price_cols = ["USDVND", "EURVND", "JPYVND", "CNYVND"]
-    
-    # Absolute Floor/Ceiling guards based on VND historical economic scale
-    # Prevents typos like 21.0 or 189.0 from surviving relative checks
-    bounds = {
-        "USDVND": (5000, 50000),
-        "EURVND": (5000, 100000),
-        "JPYVND": (10, 1000),
-        "CNYVND": (100, 10000)
-    }
+    # Robust Outlier Purge
+    target_cfg = config["targets"][target]
+    bounds = target_cfg.get("bounds", {})
+    price_cols = df_fx.columns.tolist()
 
     for col in price_cols:
-        # 1. 5-day robust window (centered)
+        # Step-median check (15% band fat-finger guard)
         local_median = df[col].rolling(window=5, center=True, min_periods=1).median()
-
-        # 2. Hybrid Mask: Relative (15%) + Absolute (Fat-Finger Guard)
-        rel_mask = (df[col] / local_median < 0.85) | (df[col] / local_median > 1.15)
+        rel_mask = (df[col] / local_median < 0.93) | (df[col] / local_median > 1.07)
+        
+        # Scale-based guard
         b_min, b_max = bounds.get(col, (0, np.inf))
         abs_mask = (df[col] < b_min) | (df[col] > b_max)
         
         mask = rel_mask | abs_mask
-
         if mask.any():
-            print(f"  [CLEAN] Purged {mask.sum()} outliers in {col} (e.g., {df.index[mask][0].date()})")
+            print(f"  [CLEAN] Purged {mask.sum()} outliers in {col}")
             df.loc[mask, col] = np.nan
+            
+    # DATA SANITY: 5-Day Business Week (Leakage & Autocorrelation Protocol)
+    # 1. Drop Saturdays/Sundays to prevent zero-return weekend bias
+    df = df[df.index.dayofweek < 5]
 
-    # STEP-FUNCTION ALIGNMENT:
-    # Fill natural gaps (weekends) and purged outliers via clean ffill logic
+    # 2. Re-anchor to last REAL market date (No future-date padding)
+    df = df[df.index <= last_market_date]
+
+    # 3. Fill natural market gaps (holidays) via clean ffill logic
     df = df.ffill().bfill()
 
-    # Calculate % log-returns (Lu & Perron 2010)
+    # Log Returns
     ret_cols = []
-    for col in ["USDVND", "EURVND", "JPYVND", "CNYVND"]:
+    for col in price_cols:
         ret_name = f"{col}_RET"
         df[ret_name] = np.log(df[col] / df[col].shift(1)) * 100
         ret_cols.append(ret_name)
 
-    # Interest Rate Differential (Exog) - Lagged t-1
-    df["IR_DIFF"] = df["VN_RATE"] - df["US_RATE"]
-    df["IR_DIFF_LAGGED"] = df["IR_DIFF"].shift(1)
-
-    # Clean final set (only drop the first row with NaN return/lag)
+    df["IR_DIFF_LAGGED"] = (df["TARGET_RATE"] - df["REF_RATE"]).shift(1)
     df_clean = df.dropna(subset=ret_cols + ["IR_DIFF_LAGGED"]).copy()
     df_clean.index.name = "Date"
 
-    # Chronological Split
+    # Split
     n = len(df_clean)
-    split1 = int(n * config["data"]["train_ratio"])
-    split2 = split1 + int(n * config["data"]["val_ratio"])
+    s1 = int(n * config["data"]["train_ratio"])
+    s2 = s1 + int(n * config["data"]["val_ratio"])
+    
+    train, val, test = df_clean.iloc[:s1], df_clean.iloc[s1:s2], df_clean.iloc[s2:]
 
-    train = df_clean.iloc[:split1]
-    val = df_clean.iloc[split1:split2]
-    test = df_clean.iloc[split2:]
+    # Save to dynamic path
+    proc_path = os.path.join(config["paths"]["processed"], target)
+    os.makedirs(proc_path, exist_ok=True)
+    
+    df_clean.to_csv(os.path.join(proc_path, "fx_aligned.csv"))
+    train.to_csv(os.path.join(proc_path, "train.csv"))
+    val.to_csv(os.path.join(proc_path, "val.csv"))
+    test.to_csv(os.path.join(proc_path, "test.csv"))
 
-    # Save artifacts
-    p = config["paths"]["processed"]
-    df_clean.to_csv(os.path.join(p, "fx_aligned.csv"))
-    train.to_csv(os.path.join(p, "train.csv"))
-    val.to_csv(os.path.join(p, "val.csv"))
-    test.to_csv(os.path.join(p, "test.csv"))
-
-    print(
-        f"[SUCCESS] Final Core Points: {len(df_clean)} | Train={len(train)}, Val={len(val)}, Test={len(test)}"
-    )
+    print(f"[SUCCESS] {target} Preprocessed. Total: {len(df_clean)} | Path: {proc_path}")
     return df_clean
 
 
@@ -258,9 +262,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
     cfg = load_config(args.config)
 
-    os.makedirs(cfg["paths"]["raw"], exist_ok=True)
-    os.makedirs(cfg["paths"]["processed"], exist_ok=True)
-
     df_fx = download_and_cross_fx(cfg)
-    us_rate, vn_rate = download_interest_rates(cfg)
-    preprocess_and_split(df_fx, us_rate, vn_rate, cfg)
+    us_rate, t_rate = download_interest_rates(cfg)
+    preprocess_and_split(df_fx, us_rate, t_rate, cfg)

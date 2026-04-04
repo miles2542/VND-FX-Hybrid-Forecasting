@@ -1,90 +1,296 @@
-# Hybrid FX Forecasting Pipeline Configuration
-# Base Paper: Ince & Trafalis (2006)
-# Modified for VND-centric exchange rates
-
-# Note for AI agents: do not delete comments (else there would likely be errors due to incorrect values)
-
-project_name: "VND-FX-Hybrid-Forecasting"
-
-tickers:
-  USDVND: "USDVND=X"
-  EURVND: "EURVND=X"
-  JPYVND: "JPYVND=X"
-  CNYVND: "CNHVND=X" # Offshore Yuan used for availability
-
-exogenous:
-  us_interest_rate: "DFF" # FRED: Daily Fed Funds Effective Rate
-  vn_interest_rate: "VNREFI" # Placeholder/Manual CSV for SBV Refinancing Rate
-                             # Needs modifications when adding exogenous variable (plus data) for ARIMAX/VARX models
-
-data:
-  start_date: "2010-01-01" # Truncated to 2010 for higher data quality, see docs\Data time range choice explanation.md
-  end_date: "2026-12-31"
-  transform: "log_returns_100" # Log returns * 100 per Lu & Perron (2010)
-  train_ratio: 0.8
-  val_ratio: 0.1
-  test_ratio: 0.1
-  lag_exogenous: 1
-  ml_lags_max: 30
-
+active_target: PHP
 arima:
-  max_p: 5
+  ic: bic
   max_d: 1
+  max_p: 5
   max_q: 5
   seasonal: false
-  ic: "aic"
-
-var:
-  max_lags: 10
-  ic: "SC"
-
-svr:
-  kernel: "rbf"
-  C_range: [0.1, 1, 10, 100, 1000]
-  gamma_range: ["scale", 0.01, 0.1, 1]
-  epsilon_range: [0.001, 0.01, 0.1]
-
-mlp:
-  hidden_layer_sizes: [[10], [20], [50], [10, 10], [20, 10]]
-  solver: "adam"
-  activation: "relu"
-  max_iter: 2000
-  early_stopping: true
-
-rolling_cv:
-  enabled: false # Set true for final robustness run, needs to be implemented and modify this comment
-  window_type: "sliding" # "expanding" or "sliding"
-  step_size: 30
-  initial_window: 0.7
-
-structural_breaks:
-  enabled: true
-  ignore_breaks: false # Pipeline will exit if breaks found unless true
-
 baselines:
   enabled: true
-  models: ["rw", "mean", "ar1"]
-
+  models:
+    - rw
+    - mean
+    - ar1
+data:
+  end_date: "2026-12-31"
+  lag_exogenous: 1
+  ml_lags_max: 30
+  start_date: "2010-01-01"
+  test_ratio: 0.1
+  train_ratio: 0.8
+  transform: log_returns_100
+  val_ratio: 0.1
 diagnostics:
-  run_adf_kpss: true
-  run_structural_breaks: true
   parallel:
     enabled: true
-    n_workers: 6
-    max_retries_per_series: 1
-    retry_backoff_seconds: 1
     fallback_to_sequential_on_parallel_error: true
+    max_retries_per_series: 1
+    n_workers: 6
+    retry_backoff_seconds: 1
+  run_adf_kpss: true
+  run_structural_breaks: true
   structural_breaks:
-    # Runtime/performance controls used by src/02_diagnostics.R
+    compute_heavy_stats: true
     h: 0.15
     max_breaks: 3
-    compute_heavy_stats: true
-    targets: ["mean", "variance"]
-    variance_proxy: "squared" # "squared" or "absolute"
-
+    targets:
+      - mean
+      - variance
+    variance_proxy: squared
+exogenous:
+  us_interest_rate: DFF
+  vn_interest_rate: VNREFI
+mlp:
+  activation: relu
+  early_stopping: true
+  hidden_layer_sizes:
+    - - 10
+    - - 20
+    - - 50
+    - - 10
+      - 10
+    - - 20
+      - 10
+  max_iter: 2000
+  solver: adam
+nonparametric:
+  use_tuned_params_if_exists: false # For some reasons I've yet to be able to make tuning results consistently better than default:) So we use default for now
 paths:
-  raw: "data/raw"
-  processed: "data/processed"
-  results: "results"
-
+  processed: data/processed
+  raw: data/raw
+  results: results
+rolling_cv:
+  enabled: false
+  initial_window: 0.7
+  step_size: 30
+  window_type: sliding
 seed: 42
+structural_breaks:
+  enabled: true
+  ignore_breaks: false
+svr:
+  C_range:
+    - 0.1
+    - 1
+    - 10
+    - 100
+    - 1000
+  epsilon_range:
+    - 0.001
+    - 0.01
+    - 0.1
+  gamma_range:
+    - scale
+    - 0.01
+    - 0.1
+    - 1
+  kernel: rbf
+targets:
+  AUD:
+    anchor_ccy: USD
+    bounds:
+      AUDCNY:
+        - 4
+        - 8
+      AUDINR:
+        - 40
+        - 80
+      AUDJPY:
+        - 50
+        - 120
+      AUDKRW:
+        - 700
+        - 1500
+      AUDUSD:
+        - 0.5
+        - 1.1
+    partners:
+      - CNY
+      - USD
+      - JPY
+      - KRW
+      - INR
+  EUR:
+    anchor_ccy: USD
+    bounds:
+      EURCHF:
+        - 0.8
+        - 1.3
+      EURCNY:
+        - 6
+        - 12
+      EURGBP:
+        - 0.6
+        - 1.0
+      EURTRY:
+        - 1
+        - 40
+      EURUSD:
+        - 0.8
+        - 1.6
+    partners:
+      - USD
+      - CNY
+      - GBP
+      - CHF
+      - TRY
+  IDR:
+    anchor_ccy: USD
+    bounds:
+      CNYIDR:
+        - 1000
+        - 3000
+      INRIDR:
+        - 100
+        - 300
+      JPYIDR:
+        - 50
+        - 200
+      SGDIDR:
+        - 7000
+        - 15000
+      USDIDR:
+        - 8000
+        - 20000
+    partners:
+      - USD
+      - CNY
+      - INR
+      - JPY
+      - SGD
+  MYR:
+    anchor_ccy: USD
+    bounds:
+      CNYMYR:
+        - 0.3
+        - 1.0
+      EURMYR:
+        - 3.0
+        - 6.0
+      JPYMYR:
+        - 0.01
+        - 0.06
+      SGDMYR:
+        - 2.0
+        - 5.0
+      USDMYR:
+        - 1.0
+        - 6.0
+    partners:
+      - USD
+      - CNY
+      - EUR
+      - JPY
+      - SGD
+    raw_tickers:
+      EURUSD: EURUSD=X
+      USDCNY: USDCNY=X
+      USDJPY: USDJPY=X
+      USDMYR: USDMYR=X
+      USDSGD: USDSGD=X
+  PHP:
+    anchor_ccy: USD
+    bounds:
+      CNYPHP:
+        - 3
+        - 15
+      HKDPHP:
+        - 3
+        - 12
+      JPYPHP:
+        - 0.1
+        - 1.0
+      SGDPHP:
+        - 20
+        - 70
+      USDPHP:
+        - 30
+        - 85
+    partners:
+      - USD
+      - CNY
+      - JPY
+      - HKD
+      - SGD
+  SGD:
+    anchor_ccy: USD
+    bounds:
+      CNYSGD:
+        - 0.1
+        - 0.4
+      EURSGD:
+        - 1.1
+        - 1.8
+      JPYSGD:
+        - 0.005
+        - 0.02
+      MYRSGD:
+        - 0.2
+        - 0.5
+      USDSGD:
+        - 1.0
+        - 2.0
+    partners:
+      - USD
+      - CNY
+      - EUR
+      - MYR
+      - JPY
+    raw_tickers:
+      EURUSD: EURUSD=X
+      USDCNY: USDCNY=X
+      USDJPY: USDJPY=X
+      USDMYR: USDMYR=X
+      USDSGD: USDSGD=X
+  THB:
+    anchor_ccy: USD
+    bounds:
+      CNYTHB:
+        - 3
+        - 7
+      INRTHB:
+        - 0.2
+        - 0.6
+      JPYTHB:
+        - 0.1
+        - 0.5
+      MYRTHB:
+        - 6
+        - 10
+      USDTHB:
+        - 25
+        - 45
+    partners:
+      - USD
+      - CNY
+      - JPY
+      - INR
+      - MYR
+  VND:
+    anchor_ccy: USD
+    bounds:
+      CNYVND:
+        - 100
+        - 10000
+      EURVND:
+        - 5000
+        - 100000
+      JPYVND:
+        - 10
+        - 1000
+      USDVND:
+        - 5000
+        - 50000
+    partners:
+      - USD
+      - EUR
+      - JPY
+      - CNY
+    raw_tickers:
+      EURUSD: EURUSD=X
+      USDCNY: USDCNY=X
+      USDJPY: USDJPY=X
+      USDVND: USDVND=X
+var:
+  ic: SC
+  max_lags: 10

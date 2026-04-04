@@ -17,8 +17,8 @@ if (length(args) == 0) {
 }
 
 config <- read_yaml(args[1])
-processed_dir <- config$paths$processed
-results_dir <- config$paths$results
+processed_dir <- file.path(config$paths$processed, config$active_target)
+results_dir <- file.path(config$paths$results, config$active_target)
 
 # 1. Load Data
 train_df <- read_csv(file.path(processed_dir, "train.csv"), show_col_types = FALSE)

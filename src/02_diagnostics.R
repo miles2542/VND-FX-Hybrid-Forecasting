@@ -20,7 +20,7 @@ if (length(args) == 0) {
 config_path <- args[1]
 config <- read_yaml(config_path)
 
-processed_path <- file.path(config$paths$processed, "fx_aligned.csv")
+processed_path <- file.path(config$paths$processed, config$active_target, "fx_aligned.csv")
 data <- read_csv(processed_path, show_col_types = FALSE)
 
 # Detect log-return columns
@@ -68,7 +68,7 @@ bp_targets <- if (!is.null(config$diagnostics$structural_breaks$targets)) config
 bp_variance_proxy <- if (!is.null(config$diagnostics$structural_breaks$variance_proxy)) config$diagnostics$structural_breaks$variance_proxy else "squared"
 
 # Prepare output path once and write run metadata immediately to avoid stale-file confusion.
-out_dir <- file.path(config$paths$results, "diagnostics")
+out_dir <- file.path(config$paths$results, config$active_target, "diagnostics")
 if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
 report_path <- file.path(out_dir, "initial_report.json")
 

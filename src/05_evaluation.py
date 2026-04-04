@@ -21,7 +21,8 @@ class ModelEvaluator:
         with open(config_path, 'r') as f:
             self.config = yaml.safe_load(f)
         
-        self.results_dir = Path(self.config['paths']['results'])
+        self.active_target = self.config.get('active_target', '')
+        self.results_dir = Path(self.config['paths']['results']) / self.active_target
         self.output_dir = self.results_dir / "evaluation"
         self.output_dir.mkdir(parents=True, exist_ok=True)
         

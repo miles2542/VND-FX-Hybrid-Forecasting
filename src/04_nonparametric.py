@@ -11,8 +11,6 @@ from sklearn.preprocessing import MinMaxScaler
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.metrics import mean_squared_error
 import optuna
-from optuna.samplers import TPESampler
-from optuna.pruners import HyperbandPruner
 from tqdm import tqdm
 
 
@@ -34,7 +32,10 @@ class ResidualHybridModel:
         self.best_lags = None
 
         # Load diagnostics to get base lag order (for reference only now)
-        diag_path = os.path.join(config["paths"]["results"], mode, "diagnostics.json")
+        active_target = config.get("active_target", "")
+        diag_path = os.path.join(
+            config["paths"]["results"], active_target, mode, "diagnostics.json"
+        )
         with open(diag_path, "r") as f:
             diag = json.load(f)
             if mode == "arima":
@@ -117,7 +118,7 @@ class ResidualHybridModel:
         return self.model
 
     def optimize(
-        self, res_train, pair_fcs, n_trials=60, phase="global", center_params=None
+        self, res_train, pair_fcs, n_trials=100, phase="global", center_params=None
     ):
         """Optuna HPO logic with Dynamic Lag Tuning and Weighted CV."""
         tss = TimeSeriesSplit(n_splits=5)
@@ -127,11 +128,9 @@ class ResidualHybridModel:
         def objective(trial):
             # 1. Suggest Lags (Dynamic ML Lag Tuning)
             if phase == "global":
-                trial_lags = trial.suggest_int(
-                    "ml_lags", 1, self.config["data"].get("ml_lags_max", 21)
-                )
+                trial_lags = trial.suggest_int("ml_lags", 1, 10)
             else:
-                trial_lags = center_params.get("ml_lags", self.base_lags)
+                trial_lags = center_params.get("ml_lags", 5)
 
             # 2. Prepare Data for this trial's lag
             X_tr_raw, y_tr_raw, _, _, _, _ = self.prepare_data(
@@ -148,7 +147,11 @@ class ResidualHybridModel:
             if self.model_type == "svr":
                 if phase == "global":
                     c = trial.suggest_float("C", 1e-5, 1e3, log=True)
-                    gamma = trial.suggest_float("gamma", 1e-4, 1e2, log=True)
+                    gamma_mode = trial.suggest_categorical("gamma_mode", ["scale", "custom"])
+                    if gamma_mode == "scale":
+                        gamma = "scale"
+                    else:
+                        gamma = trial.suggest_float("gamma_value", 1e-4, 1e2, log=True)
                     epsilon = trial.suggest_float("epsilon", 1e-5, 0.5, log=True)
                 else:
 
@@ -158,9 +161,12 @@ class ResidualHybridModel:
                     c = trial.suggest_float(
                         "C", *get_range(center_params["C"]), log=True
                     )
-                    gamma = trial.suggest_float(
-                        "gamma", *get_range(center_params["gamma"]), log=True
-                    )
+                    if center_params.get("gamma") == "scale":
+                        gamma = "scale"
+                    else:
+                        gamma = trial.suggest_float(
+                            "gamma", *get_range(center_params["gamma"]), log=True
+                        )
                     epsilon = trial.suggest_float(
                         "epsilon",
                         *get_range(center_params["epsilon"], factor=0.8),
@@ -169,12 +175,12 @@ class ResidualHybridModel:
                 model = SVR(C=c, gamma=gamma, epsilon=epsilon)
             else:
                 if phase == "global":
-                    n_layers = trial.suggest_int("n_layers", 1, 3)
+                    n_layers = trial.suggest_int("n_layers", 1, 2)
                     layers = []
                     for i in range(n_layers):
-                        layers.append(trial.suggest_int(f"n_units_l{i}", 4, 128))
-                    alpha = trial.suggest_float("alpha", 1e-4, 1e-1, log=True)
-                    lr = trial.suggest_float("learning_rate_init", 1e-4, 1e-1, log=True)
+                        layers.append(trial.suggest_int(f"n_units_l{i}", 8, 48))
+                    alpha = trial.suggest_float("alpha", 1e-3, 1.0, log=True)
+                    lr = trial.suggest_float("learning_rate_init", 1e-4, 1e-2, log=True)
                 else:
                     alpha = trial.suggest_float(
                         "alpha",
@@ -221,19 +227,52 @@ class ResidualHybridModel:
 
             return np.sum(weighted_losses)
 
-        # Setup persistent storage
-        db_path = os.path.join(self.config["paths"]["results"], "optuna_hpo.db")
-        storage_url = f"sqlite:///{os.path.abspath(db_path)}"
-        study_name = f"{self.mode}_{self.model_type}_{self.pair_name}_{phase}"
+        # Setup storage (TEMPORARY: In-Memory for speed and thread-safety)
+        active_target = self.config.get("active_target", "")
+        # db_path = os.path.join(
+        #     self.config["paths"]["results"], active_target, "optuna_hpo.db"
+        # )
+        # storage_url = f"sqlite:///{os.path.abspath(db_path)}"
+        study_name = (
+            f"{active_target}_{self.mode}_{self.model_type}_{self.pair_name}_{phase}"
+        )
 
+        sampler = optuna.samplers.TPESampler(n_startup_trials=50, seed=42)
         study = optuna.create_study(
             study_name=study_name,
             direction="minimize",
-            storage=storage_url,
-            load_if_exists=True,
-            sampler=TPESampler(seed=42),
-            pruner=HyperbandPruner(min_resource=3, max_resource=500),
+            pruner=optuna.pruners.MedianPruner(),
+            sampler=sampler,
         )
+
+        # SEEDING: 6 Curated Anchors to defend against TPE starvation and prevent overfitting
+        if phase == "global":
+            if self.model_type == "svr":
+                # 1. True Default
+                study.enqueue_trial({"C": 1.0, "gamma_mode": "scale", "epsilon": 0.1, "ml_lags": self.base_lags})
+                # 2. High Regularization
+                study.enqueue_trial({"C": 0.1, "gamma_mode": "scale", "epsilon": 0.1, "ml_lags": self.base_lags})
+                # 3. Long Memory Focus
+                study.enqueue_trial({"C": 1.0, "gamma_mode": "scale", "epsilon": 0.1, "ml_lags": 20})
+                # 4. Tight Fit
+                study.enqueue_trial({"C": 10.0, "gamma_mode": "scale", "epsilon": 0.01, "ml_lags": self.base_lags})
+                # 5. Fixed Kernel Scale (Safety)
+                study.enqueue_trial({"C": 1.0, "gamma_mode": "custom", "gamma_value": 0.1, "epsilon": 0.05, "ml_lags": 5})
+                # 6. Heavy Smoothing
+                study.enqueue_trial({"C": 0.1, "gamma_mode": "scale", "epsilon": 0.3, "ml_lags": self.base_lags})
+            else:
+                # 1. True Default
+                study.enqueue_trial({"n_layers": 1, "n_units_l0": 100, "alpha": 0.0001, "learning_rate_init": 0.001, "ml_lags": self.base_lags})
+                # 2. High Regularization
+                study.enqueue_trial({"n_layers": 1, "n_units_l0": 100, "alpha": 0.1, "learning_rate_init": 0.001, "ml_lags": self.base_lags})
+                # 3. Deep & Narrow
+                study.enqueue_trial({"n_layers": 2, "n_units_l0": 20, "n_units_l1": 10, "alpha": 0.001, "learning_rate_init": 0.001, "ml_lags": self.base_lags})
+                # 4. Long Memory Shallow
+                study.enqueue_trial({"n_layers": 1, "n_units_l0": 32, "alpha": 0.0001, "learning_rate_init": 0.001, "ml_lags": 20})
+                # 5. Fast Learner
+                study.enqueue_trial({"n_layers": 1, "n_units_l0": 50, "alpha": 0.0001, "learning_rate_init": 0.01, "ml_lags": self.base_lags})
+                # 6. Safety Net
+                study.enqueue_trial({"n_layers": 1, "n_units_l0": 32, "alpha": 0.01, "learning_rate_init": 0.001, "ml_lags": 5})
 
         pbar = tqdm(total=n_trials, desc=f"      {phase.capitalize()} HPO", leave=False)
 
@@ -246,7 +285,22 @@ class ResidualHybridModel:
         )
         pbar.close()
 
-        return study.best_params
+        best_p = study.best_params.copy()
+        
+        # SVR Param Unpacker & Cleaner
+        if self.model_type == "svr":
+            if phase == "global":
+                if best_p.get("gamma_mode") == "scale":
+                    best_p["gamma"] = "scale"
+                elif "gamma_value" in best_p:
+                    best_p["gamma"] = best_p["gamma_value"]
+                best_p.pop("gamma_mode", None)
+                best_p.pop("gamma_value", None)
+            elif phase == "local":
+                if center_params and center_params.get("gamma") == "scale":
+                    best_p["gamma"] = "scale"
+                    
+        return best_p
 
     def predict_and_combine(self, res_train, pair_fcs):
         """Predict nonlinear component using best_lags and add to linear forecast."""
@@ -290,7 +344,8 @@ def main():
     args = parser.parse_args()
 
     config = load_config(args.config)
-    results_root = config["paths"]["results"]
+    active_target = config.get("active_target", "")
+    results_root = os.path.join(config["paths"]["results"], active_target)
 
     for model_type in ["svr", "mlp"]:
         for mode in ["arima", "var"]:
@@ -317,7 +372,7 @@ def main():
                 if args.run_hpo:
                     print("    Optimizing Phase 1 (Wide + Multi-Lag)...")
                     best_params_global = hybrid_model.optimize(
-                        res_train, pair_fcs, n_trials=60, phase="global"
+                        res_train, pair_fcs, n_trials=200, phase="global"
                     )
 
                     if model_type == "mlp":
@@ -334,7 +389,7 @@ def main():
                     best_params_local = hybrid_model.optimize(
                         res_train,
                         pair_fcs,
-                        n_trials=40,
+                        n_trials=50,
                         phase="local",
                         center_params=best_params_global,
                     )
@@ -374,6 +429,38 @@ def main():
                     with open(os.path.join(res_dir, "best_params.json"), "w") as f:
                         final_params["ml_lags"] = hybrid_model.best_lags
                         json.dump(final_params, f, indent=2)
+                else:
+                    # User requested to use tuned params if --run-hpo not passed
+                    if config.get("nonparametric", {}).get("use_tuned_params_if_exists", False):
+                        res_dir = os.path.join(results_root, f"hybrid_{mode}_{model_type}", pair)
+                        param_file = os.path.join(res_dir, "best_params.json")
+                        if os.path.exists(param_file):
+                            print(f"    [INFO] Loading historically tuned parameters from {param_file}")
+                            with open(param_file, "r") as f:
+                                final_params = json.load(f)
+                            
+                            # Safely extract lag parameter
+                            hybrid_model.best_lags = final_params.pop("ml_lags", hybrid_model.base_lags)
+                            
+                            if model_type == "mlp" and "hidden_layer_sizes" in final_params:
+                                if isinstance(final_params["hidden_layer_sizes"], list):
+                                    final_params["hidden_layer_sizes"] = tuple(final_params["hidden_layer_sizes"])
+                            
+                            # Re-prepare scaled data context
+                            X_tr, y_tr, _, _, _, _ = hybrid_model.prepare_data(res_train, pair_fcs, hybrid_model.best_lags)
+                            X_tr_s = hybrid_model.scaler_x.fit_transform(X_tr)
+                            y_tr_s = hybrid_model.scaler_y.fit_transform(y_tr).ravel()
+                            
+                            # Inject tuned model
+                            if model_type == "svr":
+                                hybrid_model.model = SVR(**final_params)
+                            else:
+                                hybrid_model.model = MLPRegressor(**final_params, max_iter=2000, early_stopping=True, random_state=42)
+                            hybrid_model.model.fit(X_tr_s, y_tr_s)
+                        else:
+                            print(f"    [INFO] No tuned params found (Falling back to robust Scikit-Learn defaults).")
+                    else:
+                         print(f"    [INFO] Configured to use raw Scikit-Learn defaults.")
 
                 # Predict and Combine
                 hybrid_df = hybrid_model.predict_and_combine(res_train, pair_fcs)
