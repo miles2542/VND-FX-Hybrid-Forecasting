@@ -2,7 +2,7 @@
 
 ### Selection
 - **Start Date**: Jan 1, 2010
-- **End Date**: Mar 31, 2026 (approx. 4,200 observations)
+- **End Date**: latest (currently Mar 31, 2026 - approx. 4,200 observations)
 
 ### Rationale: Quality vs. Quantity
 While `USDVND=X` has data back to 2003, the 2010 cutoff was selected to prioritize econometric homogeneity:
