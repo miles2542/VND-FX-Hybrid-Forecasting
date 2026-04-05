@@ -1,73 +1,100 @@
-# Hybrid Multi-Basket FX Forecasting Pipeline
+# VND-FX-Hybrid-Forecasting
 
-## Project Overview
-This repository provides the architectural framework for a 3rd-year Time Series Analysis final project. It replicates and modernizes the methodology proposed by **Ince & Trafalis (2006)**.
+This repository contains a configurable FX forecasting pipeline with linear (ARIMA/VAR), hybrid residual-learning models (SVR/MLP), and evaluation outputs.
 
-The implementation supports a dynamic, target-centric FX basket (currently focused on **PHP**: USD/PHP, CNY/PHP, JPY/PHP, HKD/PHP, SGD/PHP) using daily liquidity data from **2010 to 2026**.
+## Active Target
 
----
+The active currency target is controlled in `configs/pipeline_config.yaml` via:
 
-### CRITICAL FOR TEAM MEMBERS
-DO NOT ALTER THE CORE TEMPORAL LOGIC. This pipeline adheres to a strict chronological evaluation framework.
-1. **Always consult `configs/pipeline_config.yaml`**: The pipeline is modular; all thresholds, targets, and parameters should be set there first.
-2. **Modular Integrity**: When adding/modifying code, ensure it remains modular and does not break existing dependencies.
-3. **Preserve unrelated code/comments**: Do not delete blocks or notes unless explicitly required for the task.
-4. **No future-data leakage**: One-step-ahead forecasting and sequential splitting (80/10/10) must be maintained for academic validity.
+- `active_target: PHP`
 
----
+All new notebooks below auto-read this config and should be rerun after changing `active_target`.
 
-## Architecture & Data Structure
-The pipeline follows a **Group-by-Currency** architecture.
+## Analysis Pipeline Flow
 
-### Directory Structure:
-* `src/`: Core Python/R processing scripts.
-* `data/raw/{CCY}/`: Raw data fetched from external sources.
-* `data/processed/{CCY}/`: Aligned, cleaned, and transformed CSVs (`fx_aligned.csv`, `train.csv`, etc.).
-* `results/{CCY}/`: Forecast outputs, evaluation reports, and diagnostic artifacts.
-* `notebooks/`: For visual EDA and descriptive diagnostics (e.g., `01_descriptive_statistics.ipynb`).
+Time-Series Diagnostics -> Model Justification -> Statistical Validation -> Robustness -> Interpretation
 
-### Data Flow:
-1. **01_data_loader.py**: Fetches data, executes cleaning, and creates chronological splits.
-2. **02_diagnostics.R**: Econometric stationarity and structural break tests.
-3. **03_parametric.R**: ARIMA/VAR linear baselines. 
-4. **04_nonparametric.py**: SVR/MLP non-linear correction stage (Hybrid Stage).
-5. **05_evaluation.py**: Metrics calculation and Diebold-Mariano statistical testing.
+1. `khanh_model_analysis/00_comprehensive_time_series_analysis.ipynb`
+- Deep time-series diagnostics: stationarity (ADF/KPSS/PP), structural breaks, Johansen cointegration, Granger matrix, rolling diagnostics, lead-lag and spillover visualizations.
+- Exports diagnostics tables and interactive figures to `results/<target>/diagnostics/`.
 
----
+2. `khanh_model_analysis/01_statistical_tests.ipynb`
+- ARIMA/VAR parameter significance.
+- Diebold-Mariano (DM) tests and residual diagnostics.
+- Exports to `results/<target>/evaluation/`.
 
-## Setup & Execution
+3. `khanh_model_analysis/02_robustness_checks.ipynb`
+- RESET specification-bias checks.
+- Validation/test stability and DM tail-sensitivity checks.
 
-**Prerequisites:** 
-* Python 3.10+ and standard `pip`.
-* R 4.5.x with libraries: `forecast`, `vars`, `strucchange`, `jsonlite`, `urca`.
-* `.env` file containing optional `FRED_API_KEY` for interest rate data (placeholder used if missing).
+4. `khanh_model_analysis/03_results_interpretation.ipynb`
+- Publication tables, DM summary, TS diagnostics -> model-choice linkage.
+- Forecast/error visualization and LaTeX table export.
 
-### Installation
-```bash
-pip install -r requirements.txt
-Rscript scripts/setup_r_env.R
+5. `khanh_model_analysis/05_forecast_visualization_and_economic_context.ipynb` (optional)
+- Interactive forecast dashboard, cumulative error paths, event-overlay template.
+
+## New Statistical Validation and Interpretation Notebooks
+
+The following core notebooks are under `khanh_model_analysis/`:
+
+0. `khanh_model_analysis/00_comprehensive_time_series_analysis.ipynb`
+- Rich diagnostics for stationarity, breakpoints, cointegration, Granger causality, and volatility spillover.
+- Saves publication-ready tables/plots to `results/<target>/diagnostics/`.
+
+1. `khanh_model_analysis/01_statistical_tests.ipynb`
+- ARIMA/VAR parameter significance tables.
+- Diebold-Mariano tests (hybrid vs base and model vs baseline).
+- Residual diagnostics (Ljung-Box, ARCH-LM, Jarque-Bera).
+- Exports CSV summaries to `results/<target>/evaluation/`.
+
+2. `khanh_model_analysis/02_robustness_checks.ipynb`
+- Ramsey RESET specification-bias checks.
+- Validation vs test error-distribution stability checks.
+- Tail-event exclusion sensitivity for DM conclusions.
+
+3. `khanh_model_analysis/03_results_interpretation.ipynb`
+- Publication-ready ranking tables.
+- DM evidence summary tables.
+- Auto-generated interpretation draft with metrics and p-value evidence.
+
+5. `khanh_model_analysis/05_forecast_visualization_and_economic_context.ipynb` (optional)
+- Interactive top-model forecast dashboards and cumulative error curves.
+- Event-overlay template for macro-financial annotation.
+
+## Helper Module
+
+Reusable statistical functions were added to:
+
+- `src/statistical_validation.py`
+
+(Also mirrored in `src/06_statistical_validation.py` for stage-style naming continuity.)
+
+## How To Run
+
+From project root:
+
+1. Run the pipeline first (if outputs are not ready):
+
+```powershell
+.\.venv\Scripts\python.exe main.py
 ```
 
-### Execution
-The `main.py` is the primary orchestrator. Note that data and diagnostics are pre-processed and included in the repo by default.
+2. Open and run notebooks in order:
+- `khanh_model_analysis/00_comprehensive_time_series_analysis.ipynb`
+- `khanh_model_analysis/01_statistical_tests.ipynb`
+- `khanh_model_analysis/02_robustness_checks.ipynb`
+- `khanh_model_analysis/03_results_interpretation.ipynb`
+- `khanh_model_analysis/05_forecast_visualization_and_economic_context.ipynb` (optional)
 
-**Default Routine (Standard Evaluation):**
-```bash
-python main.py --skip-data --skip-diagnostics
-```
+3. Collect exported statistical tables from:
 
-**Experimental HPO:**
-Do **NOT** run the Hyperparameter Optimization (`--run-hpo`) for general evaluation tasks. It is extremely time-intensive and only intended for targeted tuning phases.
+- `results/<active_target>/evaluation/`
+- `results/<active_target>/diagnostics/`
 
-**Modular Scripts:**
-You can run any script individually for debugging:
-`python src/01_data_loader.py --config configs/pipeline_config.yaml`
+## Notes on Extensibility
 
----
+The notebooks do not hard-code pair names or fixed model lists. They discover available models from `results/<active_target>/` and load split data/paths via config, so adding ARIMAX/VARX/new hybrid variants requires only:
 
-## Output Structure (Results)
-Results are nested by the `active_target` specified in the config:
-* `results/{CCY}/arima/`: Univariate linear results.
-* `results/{CCY}/var/`: Multivariate linear results.
-* `results/{CCY}/evaluation/`: Metrics, DM tests, and final forecasting plots.
-* `results/optuna_hpo.db`: Persistent ML study database (if HPO was run).
+- updating config and/or pipeline outputs,
+- then rerunning the notebooks.

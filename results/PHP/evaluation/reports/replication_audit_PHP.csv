@@ -1,0 +1,11 @@
+Task,Evidence,Interpretation
+Robustness: RESET pass share (non-constant only),0.14285714285714285,Higher is better (lower misspecification risk).
+Robustness: val-test distribution shift share,0.8,Lower is better (more stable out-of-sample behavior).
+Robustness: DM tail-flip share,0.37272727272727274,Lower is better (ranking less tail-dependent).
+Param significance: ARIMA significant share,0.6666666666666666,Higher means stronger linear signal in ARIMA params.
+Param significance: VAR significant share,0.3142857142857143,Higher means stronger multivariate spillover structure.
+DM: all-pairs significance share (MSE),0.6090909090909091,How often model A significantly beats model B.
+DM: hybrid-vs-linear significance share (MSE),0.2,Direct check that hybrid outperforms ARIMA/VAR statistically.
+Residual diagnostics: LB reject share,0.9555555555555556,Higher supports remaining linear dependence before/after modeling.
+Residual diagnostics: ARCH reject share,0.8666666666666667,Higher supports heteroskedasticity and volatility clustering.
+Residual diagnostics: JB reject share,1.0,Higher supports fat-tail/non-Gaussian residual behavior.

@@ -133,6 +133,9 @@ def download_and_cross_fx(config):
         else:
             usd_pivot_rates = usd_pivot_rates.join(usd_base.rename(ccy), how="outer")
 
+    if "USD" not in usd_pivot_rates.columns:
+        usd_pivot_rates["USD"] = 1.0
+
     # 3. Finalize Basket: Partner(A) / Target(B) = (USD/Target) / (USD/Partner)
     # This cancels out USD and gives us target units per partner unit.
     fx_final = pd.DataFrame(index=usd_pivot_rates.index)
@@ -193,6 +196,9 @@ def preprocess_and_split(df_fx, us_rate, target_rate, config):
     
     # Align Interest Rate
     df = df.join(us_rate.rename("REF_RATE"), how="outer")
+    if df["REF_RATE"].isna().all():
+        print("  [WARN] No reference-rate data available; using a zero placeholder series.")
+        df["REF_RATE"] = 0.0
     df["TARGET_RATE"] = 0.0 # Placeholder
     df = df[df.index <= last_market_date]
 
