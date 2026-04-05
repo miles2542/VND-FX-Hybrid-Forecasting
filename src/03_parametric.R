@@ -25,6 +25,50 @@ train_df <- read_csv(file.path(processed_dir, "train.csv"), show_col_types = FAL
 val_df <- read_csv(file.path(processed_dir, "val.csv"), show_col_types = FALSE)
 test_df <- read_csv(file.path(processed_dir, "test.csv"), show_col_types = FALSE)
 
+exog_df <- read_csv(file.path(processed_dir, "exogenous_php.csv"), show_col_types = FALSE)
+date_col <- names(train_df)[1]
+
+if (!("Date" %in% names(exog_df))) {
+  stop("exogenous_php.csv must contain a Date column.")
+}
+
+if (!(date_col %in% names(train_df)) || !(date_col %in% names(val_df)) || !(date_col %in% names(test_df))) {
+  stop("Date column is missing from one or more split files.")
+}
+
+exog_df$Date <- as.character(exog_df$Date)
+fx_dates_chr <- as.character(c(train_df[[date_col]], val_df[[date_col]], test_df[[date_col]]))
+
+# Align exogenous rows to exact FX split dates; unmatched rows become NA and are filled via LOCF.
+idx <- match(fx_dates_chr, exog_df$Date)
+aligned_exog <- exog_df[idx, , drop = FALSE]
+aligned_exog$Date <- fx_dates_chr
+
+exog_cols <- setdiff(names(aligned_exog), "Date")
+for (col_name in exog_cols) {
+  x <- as.numeric(aligned_exog[[col_name]])
+  x <- zoo::na.locf(x, na.rm = FALSE)
+  x <- zoo::na.locf(x, fromLast = TRUE, na.rm = FALSE)
+  if (all(is.na(x))) {
+    stop(sprintf("Exogenous column %s is entirely NA after alignment/fill.", col_name))
+  }
+  aligned_exog[[col_name]] <- x
+}
+
+n_train <- nrow(train_df)
+n_val <- nrow(val_df)
+n_test <- nrow(test_df)
+
+train_exog <- as.matrix(aligned_exog[seq_len(n_train), exog_cols, drop = FALSE])
+val_exog <- as.matrix(aligned_exog[(n_train + 1):(n_train + n_val), exog_cols, drop = FALSE])
+test_exog <- as.matrix(aligned_exog[(n_train + n_val + 1):(n_train + n_val + n_test), exog_cols, drop = FALSE])
+all_exog_mat <- as.matrix(aligned_exog[, exog_cols, drop = FALSE])
+
+storage.mode(train_exog) <- "numeric"
+storage.mode(val_exog) <- "numeric"
+storage.mode(test_exog) <- "numeric"
+storage.mode(all_exog_mat) <- "numeric"
+
 ret_cols <- grep("_RET$", names(train_df), value = TRUE)
 
 # ------------------------------------------------------------------------------
@@ -95,6 +139,65 @@ for (col in ret_cols) {
 write_json(arima_diag, file.path(arima_results_dir, "diagnostics.json"), pretty = TRUE, auto_unbox = TRUE)
 write_csv(do.call(rbind, arima_forecasts), file.path(arima_results_dir, "forecasts.csv"))
 write_csv(arima_residuals_train, file.path(arima_results_dir, "residuals_train.csv"))
+
+# ------------------------------------------------------------------------------
+# STAGE 1B: ARIMAX (Univariate + Exogenous)
+# ------------------------------------------------------------------------------
+cat("\n--- Fitting ARIMAX Models ---\n")
+arimax_results_dir <- file.path(results_dir, "arimax")
+if (!dir.exists(arimax_results_dir)) dir.create(arimax_results_dir, recursive = TRUE)
+
+arimax_forecasts <- list()
+arimax_diag <- list()
+arimax_residuals_train <- data.frame(Date = train_df[[1]])
+
+for (col in ret_cols) {
+  cat(sprintf("Fitting auto.arima (xreg) for %s...\n", col))
+  
+  train_series <- train_df[[col]]
+  fit <- auto.arima(train_series,
+                    xreg = train_exog,
+                    max.p = config$arima$max_p,
+                    max.q = config$arima$max_q,
+                    max.d = config$arima$max_d,
+                    seasonal = config$arima$seasonal,
+                    ic = config$arima$ic,
+                    stepwise = FALSE)
+  
+  all_series <- c(train_series, val_df[[col]], test_df[[col]])
+  fit_eval <- Arima(all_series, model = fit, xreg = all_exog_mat)
+  
+  fitted_vals <- as.numeric(fitted(fit_eval))
+  resid_vals <- as.numeric(residuals(fit_eval))
+  
+  arimax_diag[[col]] <- list(
+    order = as.numeric(arimaorder(fit)),
+    aic = AIC(fit),
+    bic = BIC(fit)
+  )
+  
+  arimax_residuals_train[[col]] <- resid_vals[seq_len(nrow(train_df))]
+  
+  n_train <- nrow(train_df)
+  n_val <- nrow(val_df)
+  n_test <- nrow(test_df)
+  
+  val_indices <- (n_train + 1):(n_train + n_val)
+  test_indices <- (n_train + n_val + 1):(n_train + n_val + n_test)
+  
+  pair_fc <- data.frame(
+    Date = c(val_df[[1]], test_df[[1]]),
+    Actual = c(val_df[[col]], test_df[[col]]),
+    Forecast = fitted_vals[c(val_indices, test_indices)],
+    Set = c(rep("val", n_val), rep("test", n_test))
+  )
+  pair_fc$Pair <- col
+  arimax_forecasts[[col]] <- pair_fc
+}
+
+write_json(arimax_diag, file.path(arimax_results_dir, "diagnostics.json"), pretty = TRUE, auto_unbox = TRUE)
+write_csv(do.call(rbind, arimax_forecasts), file.path(arimax_results_dir, "forecasts.csv"))
+write_csv(arimax_residuals_train, file.path(arimax_results_dir, "residuals_train.csv"))
 
 # ------------------------------------------------------------------------------
 # STAGE 2: VAR (Multivariate)
@@ -215,7 +318,117 @@ write_json(var_diag, file.path(var_results_dir, "diagnostics.json"), pretty = TR
 write_csv(do.call(rbind, var_forecasts_list), file.path(var_results_dir, "forecasts.csv"))
 write_csv(var_residuals_train, file.path(var_results_dir, "residuals_train.csv"))
 
-cat("\n--- Parametric Stage Completed. Results saved to results/arima/ and results/var/ ---\n")
+# ------------------------------------------------------------------------------
+# STAGE 2B: VARX (Multivariate + Exogenous)
+# ------------------------------------------------------------------------------
+cat("\n--- Fitting VARX Model ---\n")
+varx_results_dir <- file.path(results_dir, "varx")
+if (!dir.exists(varx_results_dir)) dir.create(varx_results_dir, recursive = TRUE)
+
+varx_data_train <- as.matrix(train_df[, ret_cols])
+varx_johansen_test <- ca.jo(varx_data_train, type = "trace", ecdet = "const", spec = "transitory")
+
+varx_lag_select <- VARselect(varx_data_train, lag.max = config$var$max_lags, type = "both", exogen = train_exog)
+varx_ic_to_use <- toupper(config$var$ic)
+varx_matched_name <- names(varx_lag_select$selection)[grep(varx_ic_to_use, names(varx_lag_select$selection))]
+
+if (length(varx_matched_name) > 0) {
+  varx_selected_p <- as.numeric(varx_lag_select$selection[varx_matched_name[1]])
+} else {
+  varx_selected_p <- as.numeric(varx_lag_select$selection[1])
+  varx_ic_to_use <- names(varx_lag_select$selection)[1]
+}
+
+if (is.na(varx_selected_p) || varx_selected_p < 1) varx_selected_p <- 1
+cat(sprintf("Selected VARX lag (p) via %s: %d\n", varx_ic_to_use, varx_selected_p))
+
+varx_fit <- VAR(varx_data_train, p = varx_selected_p, type = "both", exogen = train_exog)
+
+all_data_mat <- as.matrix(rbind(train_df[, ret_cols], val_df[, ret_cols], test_df[, ret_cols]))
+n_total <- nrow(all_data_mat)
+
+varx_fitted_vals <- matrix(NA, nrow = n_total, ncol = length(ret_cols))
+colnames(varx_fitted_vals) <- ret_cols
+
+varx_fitted_train <- fitted(varx_fit)
+varx_fitted_vals[(varx_selected_p + 1):nrow(train_df), ] <- varx_fitted_train
+
+coef_list <- coef(varx_fit)
+exog_col_names <- colnames(train_exog)
+
+for (t in (nrow(train_df) + 1):n_total) {
+  for (i in seq_along(ret_cols)) {
+    target_col <- ret_cols[i]
+    c_vals <- coef_list[[target_col]]
+
+    pred_val <- 0
+
+    for (p_idx in 1:varx_selected_p) {
+      for (v_col in ret_cols) {
+        row_name <- paste0(v_col, ".l", p_idx)
+        if (row_name %in% rownames(c_vals)) {
+          pred_val <- pred_val + c_vals[row_name, 1] * all_data_mat[t - p_idx, v_col]
+        }
+      }
+    }
+
+    if ("const" %in% rownames(c_vals)) pred_val <- pred_val + c_vals["const", 1]
+    if ("trend" %in% rownames(c_vals)) pred_val <- pred_val + c_vals["trend", 1]
+
+    # Add exogenous term: beta_j * X_{t,j} for all exogenous columns.
+    for (ex_col in exog_col_names) {
+      if (ex_col %in% rownames(c_vals)) {
+        pred_val <- pred_val + c_vals[ex_col, 1] * all_exog_mat[t, ex_col]
+      } else {
+        exo_name <- paste0("exo_", ex_col)
+        if (exo_name %in% rownames(c_vals)) {
+          pred_val <- pred_val + c_vals[exo_name, 1] * all_exog_mat[t, ex_col]
+        }
+      }
+    }
+
+    varx_fitted_vals[t, i] <- pred_val
+  }
+}
+
+varx_forecasts_list <- list()
+varx_residuals_train <- data.frame(Date = train_df[[1]])
+varx_all_res_mat <- all_data_mat - varx_fitted_vals
+
+for (i in seq_along(ret_cols)) {
+  col <- ret_cols[i]
+
+  res_train <- varx_all_res_mat[seq_len(nrow(train_df)), i]
+  res_train[is.na(res_train)] <- 0
+  varx_residuals_train[[col]] <- res_train
+
+  val_indices <- (nrow(train_df) + 1):(nrow(train_df) + nrow(val_df))
+  test_indices <- (nrow(train_df) + nrow(val_df) + 1):n_total
+
+  pair_fc <- data.frame(
+    Date = c(val_df$Date, test_df$Date),
+    Actual = c(val_df[[col]], test_df[[col]]),
+    Forecast = varx_fitted_vals[c(val_indices, test_indices), i],
+    Set = c(rep("val", nrow(val_df)), rep("test", nrow(test_df))),
+    Pair = col
+  )
+  varx_forecasts_list[[col]] <- pair_fc
+}
+
+varx_diag <- list(
+  selected_lag = as.numeric(varx_selected_p),
+  aic = AIC(varx_fit),
+  johansen = list(
+    test_stat = as.numeric(varx_johansen_test@teststat),
+    critical_vals = varx_johansen_test@cval
+  )
+)
+
+write_json(varx_diag, file.path(varx_results_dir, "diagnostics.json"), pretty = TRUE, auto_unbox = TRUE)
+write_csv(do.call(rbind, varx_forecasts_list), file.path(varx_results_dir, "forecasts.csv"))
+write_csv(varx_residuals_train, file.path(varx_results_dir, "residuals_train.csv"))
+
+cat("\n--- Parametric Stage Completed. Results saved to results/arima/, results/arimax/, results/var/, and results/varx/ ---\n")
 
 # ------------------------------------------------------------------------------
 # STAGE 3: Baselines (Academic Benchmarks)
