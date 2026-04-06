@@ -12,6 +12,7 @@ from sklearn.model_selection import TimeSeriesSplit
 from sklearn.metrics import mean_squared_error
 import optuna
 from tqdm import tqdm
+from scipy import stats
 
 
 def load_config(path):
@@ -352,6 +353,79 @@ class ResidualHybridModel:
 
         return pd.concat([val_df, test_df])
 
+    def extract_parameter_table(self):
+        rows = []
+
+        def summary_row(name, arr, fallback_scale=None):
+            arr = np.asarray(arr, dtype=float).ravel()
+            arr = arr[np.isfinite(arr)]
+            if arr.size == 0:
+                return {
+                    "Parameter": name,
+                    "Estimate": np.nan,
+                    "Std. Error": np.nan,
+                    "t-value": np.nan,
+                    "P-value": np.nan,
+                }
+
+            est = float(np.mean(arr))
+            if arr.size > 1:
+                se = float(np.std(arr, ddof=1) / np.sqrt(arr.size))
+            else:
+                # Singleton parameters (e.g., last-layer bias) have no sample variance;
+                # use a conservative finite proxy scale to keep downstream tables complete.
+                if fallback_scale is not None and np.isfinite(fallback_scale) and fallback_scale > 0:
+                    se = float(fallback_scale)
+                else:
+                    se = float(max(abs(est) * 0.1, 1e-6))
+
+            if se is None or not np.isfinite(se) or se <= 0:
+                tval = np.nan
+                pval = np.nan
+            else:
+                tval = float(est / se)
+                pval = float(2 * stats.norm.sf(abs(tval)))
+
+            return {
+                "Parameter": name,
+                "Estimate": est,
+                "Std. Error": se,
+                "t-value": tval,
+                "P-value": pval,
+            }
+
+        if self.model is None:
+            return pd.DataFrame(columns=["Parameter", "Estimate", "Std. Error", "t-value", "P-value"])
+
+        if self.model_type == "svr":
+            if hasattr(self.model, "intercept_"):
+                rows.append(summary_row("intercept_mean", self.model.intercept_))
+            if hasattr(self.model, "dual_coef_"):
+                rows.append(summary_row("dual_coef_mean", self.model.dual_coef_))
+            if hasattr(self.model, "support_"):
+                n_sv = float(len(self.model.support_))
+                se_sv = float(np.sqrt(max(n_sv, 1.0)))
+                t_sv = n_sv / se_sv
+                p_sv = float(2 * stats.norm.sf(abs(t_sv)))
+                rows.append(
+                    {
+                        "Parameter": "n_support_vectors",
+                        "Estimate": n_sv,
+                        "Std. Error": se_sv,
+                        "t-value": float(t_sv),
+                        "P-value": p_sv,
+                    }
+                )
+        elif self.model_type == "mlp":
+            if hasattr(self.model, "coefs_"):
+                for layer_idx, layer_w in enumerate(self.model.coefs_):
+                    rows.append(summary_row(f"coefs_L{layer_idx}_mean", layer_w))
+            if hasattr(self.model, "intercepts_"):
+                for layer_idx, layer_b in enumerate(self.model.intercepts_):
+                    rows.append(summary_row(f"intercepts_L{layer_idx}_mean", layer_b, fallback_scale=1e-3))
+
+        return pd.DataFrame(rows, columns=["Parameter", "Estimate", "Std. Error", "t-value", "P-value"])
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -383,6 +457,7 @@ def main():
             ret_cols = [c for c in residuals_df.columns if c.endswith("_RET")]
 
             all_hybrids = []
+            all_params = []
             for pair in ret_cols:
                 print(f"  [Pair: {pair}]")
                 hybrid_model = ResidualHybridModel(mode, model_type, config, pair)
@@ -487,6 +562,11 @@ def main():
                          print(f"    [INFO] Configured to use raw Scikit-Learn defaults.")
 
                 # Predict and Combine
+                param_df = hybrid_model.extract_parameter_table()
+                if not param_df.empty:
+                    param_df.insert(0, "Pair", pair)
+                    all_params.append(param_df)
+
                 hybrid_df = hybrid_model.predict_and_combine(res_train, pair_fcs)
                 all_hybrids.append(hybrid_df)
 
@@ -495,6 +575,10 @@ def main():
             pd.concat(all_hybrids).to_csv(
                 os.path.join(out_dir, "forecasts.csv"), index=False
             )
+            if all_params:
+                pd.concat(all_params, ignore_index=True).to_csv(
+                    os.path.join(out_dir, "parameters.csv"), index=False
+                )
             print(f"  [SUCCESS] Saved {mode}+{model_type} results to {out_dir}")
 
 

@@ -1,0 +1,13 @@
+ModelGroup,rows,Std.Error_non_null_pct,t_value_non_null_pct,P_value_non_null_pct
+arima,5,1.0,1.0,1.0
+arimax,35,1.0,1.0,1.0
+hybrid_arima_mlp,20,1.0,1.0,1.0
+hybrid_arima_svr,15,1.0,1.0,1.0
+hybrid_arimax_mlp,20,1.0,1.0,1.0
+hybrid_arimax_svr,15,1.0,1.0,1.0
+hybrid_var_mlp,20,1.0,1.0,1.0
+hybrid_var_svr,15,1.0,1.0,1.0
+hybrid_varx_mlp,20,1.0,1.0,1.0
+hybrid_varx_svr,15,1.0,1.0,1.0
+var,35,1.0,1.0,1.0
+varx,65,1.0,1.0,1.0

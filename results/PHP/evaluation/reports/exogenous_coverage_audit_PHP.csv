@@ -1,0 +1,9 @@
+Concept,DetectedColumn,Available
+Global Dollar Strength (DXY),DXY_lr_lag1,True
+Domestic Equity Sentiment (PSEi),PSEI_lr_lag1,True
+Energy-Import Pressure (Crude Oil),CrudeOil_lr_lag1,True
+Risk Appetite (VIX),VIX_diff_lag1,True
+Regional Spillover (USD/CNY or USD/IDR proxy),CNYPHP_RET,True
+US 10Y Yield (TNX),,False
+Remittance Seasonality Dummy,,False
+Forward Points / IRP Deviation,,False

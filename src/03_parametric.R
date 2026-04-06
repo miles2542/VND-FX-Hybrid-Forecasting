@@ -81,6 +81,7 @@ if (!dir.exists(arima_results_dir)) dir.create(arima_results_dir, recursive = TR
 arima_forecasts <- list()
 arima_diag <- list()
 arima_residuals_train <- data.frame(Date = train_df[[1]])
+arima_params <- list()
 
 for (col in ret_cols) {
   cat(sprintf("Fitting auto.arima for %s...\n", col))
@@ -112,6 +113,42 @@ for (col in ret_cols) {
     aic = AIC(fit),
     bic = BIC(fit)
   )
+
+  # Parameter persistence for downstream t/z testing
+  coef_vals <- fit$coef
+  se_vals <- rep(NA_real_, length(coef_vals))
+  if (!is.null(fit$var.coef)) {
+    se_vals <- suppressWarnings(sqrt(diag(fit$var.coef)))
+  }
+  # Fallback when var.coef is unavailable/degenerate
+  if (any(is.na(se_vals)) || any(!is.finite(se_vals))) {
+    fit_sum <- summary(fit)
+    if (!is.null(fit_sum$coef)) {
+      coef_tab <- fit_sum$coef
+      # summary matrix columns are typically: Estimate, s.e., z value, Pr(>|z|)
+      if (ncol(coef_tab) >= 2) {
+        se_from_sum <- as.numeric(coef_tab[, 2])
+        names(se_from_sum) <- rownames(coef_tab)
+        for (k in names(coef_vals)) {
+          if (k %in% names(se_from_sum) && (is.na(se_vals[k]) || !is.finite(se_vals[k]))) {
+            se_vals[k] <- se_from_sum[k]
+          }
+        }
+      }
+    }
+  }
+  se_vals[se_vals <= 0] <- NA_real_
+  t_vals <- coef_vals / se_vals
+  p_vals <- 2 * pnorm(abs(t_vals), lower.tail = FALSE)
+  arima_params[[col]] <- data.frame(
+    Pair = col,
+    Parameter = names(coef_vals),
+    Estimate = as.numeric(coef_vals),
+    `Std. Error` = as.numeric(se_vals),
+    `t-value` = as.numeric(t_vals),
+    `P-value` = as.numeric(p_vals),
+    check.names = FALSE
+  )
   
   # Residuals on training set (needed for SVR/MLP)
   arima_residuals_train[[col]] <- resid_vals[seq_len(nrow(train_df))]
@@ -139,6 +176,7 @@ for (col in ret_cols) {
 write_json(arima_diag, file.path(arima_results_dir, "diagnostics.json"), pretty = TRUE, auto_unbox = TRUE)
 write_csv(do.call(rbind, arima_forecasts), file.path(arima_results_dir, "forecasts.csv"))
 write_csv(arima_residuals_train, file.path(arima_results_dir, "residuals_train.csv"))
+write_csv(do.call(rbind, arima_params), file.path(arima_results_dir, "parameters.csv"))
 
 # ------------------------------------------------------------------------------
 # STAGE 1B: ARIMAX (Univariate + Exogenous)
@@ -150,6 +188,7 @@ if (!dir.exists(arimax_results_dir)) dir.create(arimax_results_dir, recursive = 
 arimax_forecasts <- list()
 arimax_diag <- list()
 arimax_residuals_train <- data.frame(Date = train_df[[1]])
+arimax_params <- list()
 
 for (col in ret_cols) {
   cat(sprintf("Fitting auto.arima (xreg) for %s...\n", col))
@@ -175,6 +214,41 @@ for (col in ret_cols) {
     aic = AIC(fit),
     bic = BIC(fit)
   )
+
+  # Parameter persistence for downstream t/z testing
+  coef_vals <- fit$coef
+  se_vals <- rep(NA_real_, length(coef_vals))
+  if (!is.null(fit$var.coef)) {
+    se_vals <- suppressWarnings(sqrt(diag(fit$var.coef)))
+  }
+  # Fallback when var.coef is unavailable/degenerate
+  if (any(is.na(se_vals)) || any(!is.finite(se_vals))) {
+    fit_sum <- summary(fit)
+    if (!is.null(fit_sum$coef)) {
+      coef_tab <- fit_sum$coef
+      if (ncol(coef_tab) >= 2) {
+        se_from_sum <- as.numeric(coef_tab[, 2])
+        names(se_from_sum) <- rownames(coef_tab)
+        for (k in names(coef_vals)) {
+          if (k %in% names(se_from_sum) && (is.na(se_vals[k]) || !is.finite(se_vals[k]))) {
+            se_vals[k] <- se_from_sum[k]
+          }
+        }
+      }
+    }
+  }
+  se_vals[se_vals <= 0] <- NA_real_
+  t_vals <- coef_vals / se_vals
+  p_vals <- 2 * pnorm(abs(t_vals), lower.tail = FALSE)
+  arimax_params[[col]] <- data.frame(
+    Pair = col,
+    Parameter = names(coef_vals),
+    Estimate = as.numeric(coef_vals),
+    `Std. Error` = as.numeric(se_vals),
+    `t-value` = as.numeric(t_vals),
+    `P-value` = as.numeric(p_vals),
+    check.names = FALSE
+  )
   
   arimax_residuals_train[[col]] <- resid_vals[seq_len(nrow(train_df))]
   
@@ -198,6 +272,7 @@ for (col in ret_cols) {
 write_json(arimax_diag, file.path(arimax_results_dir, "diagnostics.json"), pretty = TRUE, auto_unbox = TRUE)
 write_csv(do.call(rbind, arimax_forecasts), file.path(arimax_results_dir, "forecasts.csv"))
 write_csv(arimax_residuals_train, file.path(arimax_results_dir, "residuals_train.csv"))
+write_csv(do.call(rbind, arimax_params), file.path(arimax_results_dir, "parameters.csv"))
 
 # ------------------------------------------------------------------------------
 # STAGE 2: VAR (Multivariate)
@@ -229,6 +304,21 @@ if (is.na(selected_p) || selected_p < 1) selected_p <- 1
 cat(sprintf("Selected VAR lag (p) via %s: %d\n", ic_to_use, selected_p))
 
 var_fit <- VAR(var_data_train, p = selected_p, type = "both")
+
+var_params <- list()
+for (eq_name in names(var_fit$varresult)) {
+  eq_summary <- summary(var_fit$varresult[[eq_name]])
+  coef_tab <- coef(eq_summary)
+  var_params[[eq_name]] <- data.frame(
+    Equation = eq_name,
+    Parameter = rownames(coef_tab),
+    Estimate = as.numeric(coef_tab[, "Estimate"]),
+    `Std. Error` = as.numeric(coef_tab[, "Std. Error"]),
+    `t-value` = as.numeric(coef_tab[, "t value"]),
+    `P-value` = as.numeric(coef_tab[, "Pr(>|t|)"]),
+    check.names = FALSE
+  )
+}
 
 # 1-Step Rolling Forecast (Manual Coefficient Application)
 # ---------------------------------------------------------
@@ -317,6 +407,7 @@ var_diag <- list(
 write_json(var_diag, file.path(var_results_dir, "diagnostics.json"), pretty = TRUE, auto_unbox = TRUE)
 write_csv(do.call(rbind, var_forecasts_list), file.path(var_results_dir, "forecasts.csv"))
 write_csv(var_residuals_train, file.path(var_results_dir, "residuals_train.csv"))
+write_csv(do.call(rbind, var_params), file.path(var_results_dir, "parameters.csv"))
 
 # ------------------------------------------------------------------------------
 # STAGE 2B: VARX (Multivariate + Exogenous)
@@ -343,6 +434,21 @@ if (is.na(varx_selected_p) || varx_selected_p < 1) varx_selected_p <- 1
 cat(sprintf("Selected VARX lag (p) via %s: %d\n", varx_ic_to_use, varx_selected_p))
 
 varx_fit <- VAR(varx_data_train, p = varx_selected_p, type = "both", exogen = train_exog)
+
+varx_params <- list()
+for (eq_name in names(varx_fit$varresult)) {
+  eq_summary <- summary(varx_fit$varresult[[eq_name]])
+  coef_tab <- coef(eq_summary)
+  varx_params[[eq_name]] <- data.frame(
+    Equation = eq_name,
+    Parameter = rownames(coef_tab),
+    Estimate = as.numeric(coef_tab[, "Estimate"]),
+    `Std. Error` = as.numeric(coef_tab[, "Std. Error"]),
+    `t-value` = as.numeric(coef_tab[, "t value"]),
+    `P-value` = as.numeric(coef_tab[, "Pr(>|t|)"]),
+    check.names = FALSE
+  )
+}
 
 all_data_mat <- as.matrix(rbind(train_df[, ret_cols], val_df[, ret_cols], test_df[, ret_cols]))
 n_total <- nrow(all_data_mat)
@@ -427,6 +533,7 @@ varx_diag <- list(
 write_json(varx_diag, file.path(varx_results_dir, "diagnostics.json"), pretty = TRUE, auto_unbox = TRUE)
 write_csv(do.call(rbind, varx_forecasts_list), file.path(varx_results_dir, "forecasts.csv"))
 write_csv(varx_residuals_train, file.path(varx_results_dir, "residuals_train.csv"))
+write_csv(do.call(rbind, varx_params), file.path(varx_results_dir, "parameters.csv"))
 
 cat("\n--- Parametric Stage Completed. Results saved to results/arima/, results/arimax/, results/var/, and results/varx/ ---\n")
 

@@ -1,0 +1,10 @@
+Variable,n,ADF_p,KPSS_p,Stationary_5pct
+CrudeOil_lr_lag1,4229,1.911390601205356e-22,0.1,True
+DFF_diff_lag1,4229,4.411518325529186e-12,0.1,True
+DXY_lr_lag1,4229,0.0,0.1,True
+IRP_Deviation,0,,,
+PSEI_lr_lag1,4229,0.0,0.1,True
+PolicyShock_BSP,4229,0.0,0.1,True
+RegionalSpillover,4230,4.72398163274397e-21,0.1,True
+US10YProxy,0,,,
+VIX_diff_lag1,4229,2.013467252747549e-27,0.1,True

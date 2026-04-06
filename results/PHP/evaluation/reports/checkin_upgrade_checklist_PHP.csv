@@ -1,0 +1,10 @@
+Priority,Item,Status,Recommendation
+High,US 10Y Yield (TNX),Missing,Add data source and transform to stationary form.
+High,Remittance Seasonality Dummy,Missing,Add data source and transform to stationary form.
+High,Forward Points / IRP Deviation,Missing,Add data source and transform to stationary form.
+Medium,Lag refinement for RegionalSpillover,Info,Test model with lag 0 (highest abs corr=0.853).
+Medium,Lag refinement for DXY_lr_lag1,Info,Test model with lag 0 (highest abs corr=0.202).
+Medium,Lag refinement for VIX_diff_lag1,Info,Test model with lag 0 (highest abs corr=0.153).
+Medium,Lag refinement for PSEI_lr_lag1,Info,Test model with lag -1 (highest abs corr=-0.123).
+Medium,Lag refinement for CrudeOil_lr_lag1,Info,Test model with lag 9 (highest abs corr=0.036).
+Medium,Lag refinement for PolicyShock_BSP,Info,Test model with lag 7 (highest abs corr=-0.033).
