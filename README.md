@@ -68,8 +68,6 @@ Reusable statistical functions were added to:
 
 - `src/statistical_validation.py`
 
-(Also mirrored in `src/06_statistical_validation.py` for stage-style naming continuity.)
-
 ## How To Run
 
 From project root:
