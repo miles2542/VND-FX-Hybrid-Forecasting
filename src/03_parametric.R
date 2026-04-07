@@ -360,7 +360,7 @@ for (t in (nrow(train_df) + 1):n_total) {
     
     # 2. Add Const/Trend (Name-Matched)
     if ("const" %in% rownames(c_vals)) pred_val <- pred_val + c_vals["const", 1]
-    if ("trend" %in% rownames(c_vals)) pred_val <- pred_val + c_vals["trend", 1]
+    if ("trend" %in% rownames(c_vals)) pred_val <- pred_val + c_vals["trend", 1] * t
     
     var_fitted_vals[t, i] <- pred_val
   }
@@ -479,7 +479,7 @@ for (t in (nrow(train_df) + 1):n_total) {
     }
 
     if ("const" %in% rownames(c_vals)) pred_val <- pred_val + c_vals["const", 1]
-    if ("trend" %in% rownames(c_vals)) pred_val <- pred_val + c_vals["trend", 1]
+    if ("trend" %in% rownames(c_vals)) pred_val <- pred_val + c_vals["trend", 1] * t
 
     # Add exogenous term: beta_j * X_{t,j} for all exogenous columns.
     for (ex_col in exog_col_names) {
